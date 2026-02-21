@@ -201,7 +201,7 @@
         {% if lang=='da' %}Vis fuld analyse ▾{% else %}Show full analysis ▾{% endif %}
       </button>
       <!-- Full analysis (collapsed by default) -->
-      <div id="aiFullAnalysis" class="hidden mt-4 text-xs text-slate-300 leading-relaxed bg-slate-900/50 rounded-lg p-4 whitespace-pre-wrap font-mono max-h-72 overflow-y-auto"></div>
+      <div id="aiFullAnalysis" class="hidden mt-4 space-y-3 max-h-80 overflow-y-auto pr-1"></div>
     </div>
 
     <!-- Error state -->
@@ -501,8 +501,9 @@ async function runAiAnalysis() {
     const s = d.structured;
     if (!s) {
       // Fallback: no structured parse, show raw
-      document.getElementById('aiFullAnalysis').textContent = d.raw || JSON.stringify(d, null, 2);
-      document.getElementById('aiFullAnalysis').classList.remove('hidden');
+      const fb = document.getElementById('aiFullAnalysis');
+      fb.innerHTML = `<pre class="text-xs text-slate-300 whitespace-pre-wrap">${d.raw || JSON.stringify(d, null, 2)}</pre>`;
+      fb.classList.remove('hidden');
       document.getElementById('aiSummary').classList.remove('hidden');
       return;
     }
@@ -514,18 +515,51 @@ async function runAiAnalysis() {
     verdictEl.className = 'px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ' +
       (VERDICT_STYLE[verdict] || VERDICT_STYLE['MONITOR']);
 
-    document.getElementById('aiPF').textContent = s.pf_position ? `P-F: ${s.pf_position}` : '';
+    document.getElementById('aiPF').textContent = s.pf_position ? `P-F position: ${s.pf_position}` : '';
     document.getElementById('aiSummaryText').textContent = s.summary || '';
     document.getElementById('aiNextStep').textContent = s.next_step || '';
 
-    // Full analysis text
-    const full = [
-      s.key_findings?.length ? 'Key Findings:\n' + s.key_findings.map(f=>`• ${f}`).join('\n') : '',
-      s.root_cause ? `\nRoot Cause:\n${s.root_cause}` : '',
-      s.recommended_actions ? `\nRecommended Actions:\n  Immediate: ${s.recommended_actions.immediate}\n  Within 7 days: ${s.recommended_actions.within_7_days}\n  Scheduled: ${s.recommended_actions.scheduled}` : '',
-      s.risk_if_ignored ? `\nRisk if Ignored:\n${s.risk_if_ignored}` : '',
-    ].filter(Boolean).join('\n');
-    document.getElementById('aiFullAnalysis').textContent = full;
+    // Build formatted full analysis HTML
+    const esc = t => (t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const section = (label, html) =>
+      `<div>
+        <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1">${label}</p>
+        ${html}
+      </div>`;
+
+    let html = '';
+
+    if (s.key_findings?.length) {
+      const items = s.key_findings.map(f =>
+        `<li class="flex gap-2"><span class="text-yellow-400 mt-0.5">›</span><span>${esc(f)}</span></li>`
+      ).join('');
+      html += section(LANG==='da' ? 'Nøglefund' : 'Key Findings',
+        `<ul class="space-y-1 text-sm text-slate-200">${items}</ul>`);
+    }
+
+    if (s.root_cause) {
+      html += section(LANG==='da' ? 'Grundårsag' : 'Root Cause',
+        `<p class="text-sm text-slate-200">${esc(s.root_cause)}</p>`);
+    }
+
+    if (s.recommended_actions) {
+      const ra = s.recommended_actions;
+      const rows = [
+        ra.immediate      ? `<div class="flex gap-2"><span class="text-red-400 font-semibold w-28 shrink-0 text-xs pt-0.5">${LANG==='da'?'Straks':'Immediate'}</span><span class="text-sm text-slate-200">${esc(ra.immediate)}</span></div>` : '',
+        ra.within_7_days  ? `<div class="flex gap-2"><span class="text-orange-400 font-semibold w-28 shrink-0 text-xs pt-0.5">${LANG==='da'?'Inden 7 dage':'Within 7 days'}</span><span class="text-sm text-slate-200">${esc(ra.within_7_days)}</span></div>` : '',
+        ra.scheduled      ? `<div class="flex gap-2"><span class="text-green-400 font-semibold w-28 shrink-0 text-xs pt-0.5">${LANG==='da'?'Planlagt':'Scheduled'}</span><span class="text-sm text-slate-200">${esc(ra.scheduled)}</span></div>` : '',
+      ].filter(Boolean).join('');
+      html += section(LANG==='da' ? 'Anbefalede handlinger' : 'Recommended Actions',
+        `<div class="space-y-2">${rows}</div>`);
+    }
+
+    if (s.risk_if_ignored) {
+      html += section(LANG==='da' ? 'Risiko ved ingen handling' : 'Risk if Ignored',
+        `<p class="text-sm text-red-300">${esc(s.risk_if_ignored)}</p>`);
+    }
+
+    const fullEl = document.getElementById('aiFullAnalysis');
+    fullEl.innerHTML = `<div class="space-y-4">${html}</div>`;
 
     document.getElementById('aiSummary').classList.remove('hidden');
   } catch(e) {

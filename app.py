@@ -362,9 +362,17 @@ Respond with this exact JSON structure:
         )
         raw_text = response.content[0].text.strip()
 
+        # Strip markdown code fences if Claude wrapped the JSON
+        clean_text = raw_text
+        if clean_text.startswith("```"):
+            clean_text = clean_text.split("\n", 1)[-1]  # drop first line (```json)
+        if clean_text.endswith("```"):
+            clean_text = clean_text.rsplit("```", 1)[0]
+        clean_text = clean_text.strip()
+
         # Parse structured JSON from Claude
         try:
-            structured = json_lib.loads(raw_text)
+            structured = json_lib.loads(clean_text)
         except json_lib.JSONDecodeError:
             # Fallback: return raw text if JSON parsing fails
             structured = None
