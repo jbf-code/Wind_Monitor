@@ -294,13 +294,17 @@ def api_fleet_power():
 def api_debug_ai_events():
     """Debug: list all AI Diagnosis events to verify DB persistence across deploys."""
     events = (TurbineEvent.query
-              .filter_by(category='AI Analysis')
+              .filter(TurbineEvent.category.in_(['AI Analysis', 'ai_analysis']))
               .order_by(TurbineEvent.timestamp.desc())
               .all())
+    # Also count total events for context
+    total = TurbineEvent.query.count()
     return jsonify({
-        "count": len(events),
+        "total_events_in_db": total,
+        "ai_event_count": len(events),
         "events": [{"id": e.id, "turbine_id": e.turbine_id,
                     "ts": e.timestamp.isoformat(), "code": e.code,
+                    "category": e.category,
                     "summary": e.message_en[:120]} for e in events]
     })
 
@@ -458,30 +462,42 @@ Respond with this exact JSON structure:
             "response_parsed": structured,
         }, indent=2)
 
-        # Log AI analysis as a TurbineEvent
-        ai_event = TurbineEvent(
-            turbine_id=turbine_id,
-            timestamp=datetime.utcnow(),
-            severity="info",
-            category="AI Analysis",
-            code="AI Diagnosis",
-            message_en=structured.get("summary", raw_text[:200]) if structured else raw_text[:200],
-            message_da=structured.get("summary", raw_text[:200]) if structured else raw_text[:200],
-            resolved=False,
-            resolved_at=None,
-            ai_analysis=log_payload,
-        )
-        db.session.add(ai_event)
-        db.session.commit()
+        # Log AI analysis as a TurbineEvent — separate try so a DB error
+        # doesn't prevent returning the analysis to the user
+        event_id = None
+        db_error = None
+        try:
+            summary_text = (structured.get("summary", raw_text[:200])
+                            if structured else raw_text[:200])
+            ai_event = TurbineEvent(
+                turbine_id=turbine_id,
+                timestamp=datetime.utcnow(),
+                severity="info",
+                category="AI Analysis",
+                code="AI Diag",        # String(16) limit — keep short
+                message_en=summary_text[:500],
+                message_da=summary_text[:500],
+                resolved=False,
+                resolved_at=None,
+                ai_analysis=log_payload,
+            )
+            db.session.add(ai_event)
+            db.session.commit()
+            event_id = ai_event.id
+        except Exception as db_exc:
+            db.session.rollback()
+            db_error = str(db_exc)
 
         return jsonify({
             "status": "ok",
             "turbine_id": turbine_id,
             "structured": structured,
             "raw": raw_text,
-            "event_id": ai_event.id,
+            "event_id": event_id,
+            "db_error": db_error,   # exposed for debugging; None when all good
         })
     except Exception as e:
+        db.session.rollback()
         return jsonify({"status": "error", "message": str(e)}), 500
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
