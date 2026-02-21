@@ -257,6 +257,8 @@ function renderMap(data) {
   if (latlngs.length > 0) {
     mapInstance.fitBounds(latlngs, { padding: [30, 30] });
   }
+  // Force tile render after container is visible
+  setTimeout(() => mapInstance.invalidateSize(), 100);
 }
 
 // ── Fleet Power Chart ────────────────────────────────────────────────────────
