@@ -35,7 +35,7 @@
       <h2 class="font-semibold text-white text-sm">
         {% if lang=='da' %}Placering af møllepark · Vestjylland{% else %}Farm Location · Western Jutland{% endif %}
       </h2>
-      <span class="text-xs text-slate-500">OpenStreetMap</span>
+      <span class="text-xs text-slate-500">CARTO Dark Matter</span>
     </div>
     <div id="map" style="height:412px;"></div>
   </div>
@@ -217,9 +217,10 @@ function renderTurbineGrid(data) {
 function renderMap(data) {
   if (!mapInstance) {
     mapInstance = L.map('map', { zoomControl: true, scrollWheelZoom: false });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
-      maxZoom: 18,
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors © <a href="https://carto.com">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20,
     }).addTo(mapInstance);
   }
 
