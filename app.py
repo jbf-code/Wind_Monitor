@@ -321,35 +321,38 @@ def api_ai_analyze(turbine_id):
             )
         return "\n".join(lines)
 
-    prompt = f"""You are an expert wind turbine condition monitoring engineer. Analyze the following sensor data and provide a concise diagnostic report.
+    readings_text = fmt_readings(readings)
+    events_text = fmt_events(events)
 
-## Turbine Info
-- Name: {turbine.name}
-- Make/Model: {turbine.make} {turbine.model}
-- Serial: {turbine.serial_number}
-- Rated power: {turbine.rated_power_kw} kW
-- Hub height: {turbine.hub_height_m} m | Rotor diameter: {turbine.rotor_diameter_m} m
-- Build date: {turbine.build_date} | Last service: {turbine.last_service_date}
-- Current status: {turbine.status}
+    prompt = f"""You are an expert wind turbine condition monitoring engineer. Analyze the following sensor data and respond with ONLY valid JSON — no prose, no markdown fences.
 
-## Active Alerts (unresolved)
-{fmt_events(events)}
+Turbine: {turbine.name} | {turbine.make} {turbine.model} | rated {turbine.rated_power_kw} kW | status: {turbine.status}
+Build: {turbine.build_date} | Last service: {turbine.last_service_date}
 
-## Recent Sensor Readings (last {len(readings)} minutes)
-{fmt_readings(readings)}
+Active alerts:
+{events_text}
 
-## Your Task
-Provide a structured diagnostic report with these sections:
-1. **Summary** - One sentence on the turbine's overall condition.
-2. **Key Findings** - Bullet points of any anomalies or concerning trends in the data.
-3. **Root Cause Assessment** - Most likely cause(s) of any issues detected.
-4. **P-F Curve Position** - Estimate where on the failure curve this turbine sits (early warning / developing / imminent).
-5. **Recommended Actions** - Prioritized action items (immediate / within 7 days / scheduled maintenance).
-6. **Risk if Ignored** - Brief statement of consequences if no action is taken.
+Recent sensor readings (last {len(readings)} minutes):
+{readings_text}
 
-Be specific and reference actual values from the data. Keep the report concise and actionable."""
+Respond with this exact JSON structure:
+{{
+  "verdict": "OK | MONITOR | ACTION REQUIRED | CRITICAL",
+  "summary": "One sentence overall condition assessment.",
+  "next_step": "Single most important action to take right now.",
+  "pf_position": "early warning | developing | imminent | none",
+  "key_findings": ["finding 1", "finding 2", "finding 3"],
+  "root_cause": "Brief root cause assessment.",
+  "recommended_actions": {{
+    "immediate": "...",
+    "within_7_days": "...",
+    "scheduled": "..."
+  }},
+  "risk_if_ignored": "Brief consequence statement."
+}}"""
 
     try:
+        import json as json_lib
         from anthropic import Anthropic
         client = Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
@@ -357,11 +360,50 @@ Be specific and reference actual values from the data. Keep the report concise a
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}]
         )
-        analysis = response.content[0].text
+        raw_text = response.content[0].text.strip()
+
+        # Parse structured JSON from Claude
+        try:
+            structured = json_lib.loads(raw_text)
+        except json_lib.JSONDecodeError:
+            # Fallback: return raw text if JSON parsing fails
+            structured = None
+
+        # Build full log entry stored in DB
+        log_payload = json_lib.dumps({
+            "prompt_summary": {
+                "turbine": turbine.name,
+                "readings_count": len(readings),
+                "active_alerts": len(events),
+                "readings_from": readings[0].timestamp.isoformat() if readings else None,
+                "readings_to": readings[-1].timestamp.isoformat() if readings else None,
+            },
+            "response_raw": raw_text,
+            "response_parsed": structured,
+        }, indent=2)
+
+        # Log AI analysis as a TurbineEvent
+        ai_event = TurbineEvent(
+            turbine_id=turbine_id,
+            timestamp=datetime.utcnow(),
+            severity="info",
+            category="ai_analysis",
+            code="AI-DIAG",
+            message_en=structured.get("summary", raw_text[:200]) if structured else raw_text[:200],
+            message_da=structured.get("summary", raw_text[:200]) if structured else raw_text[:200],
+            resolved=True,
+            resolved_at=datetime.utcnow(),
+            ai_analysis=log_payload,
+        )
+        db.session.add(ai_event)
+        db.session.commit()
+
         return jsonify({
             "status": "ok",
             "turbine_id": turbine_id,
-            "analysis": analysis,
+            "structured": structured,
+            "raw": raw_text,
+            "event_id": ai_event.id,
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
