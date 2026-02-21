@@ -135,6 +135,11 @@
   <div class="card p-4">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-white">{% if lang=='da' %}Vibration (gearkasse){% else %}Vibration (Gearbox){% endif %}</h2>
+      <div class="flex gap-1 text-xs">
+        <button onclick="setRange('24h')" id="range3-24h" class="range3-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+        <button onclick="setRange('7d')"  id="range3-7d"  class="range3-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+        <button onclick="setRange('21d')" id="range3-21d" class="range3-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+      </div>
     </div>
     <div style="height:180px;"><canvas id="chartVibration"></canvas></div>
   </div>
@@ -143,6 +148,11 @@
   <div class="card p-4">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-white">RPM & {% if lang=='da' %}Pitch{% else %}Pitch Angle{% endif %}</h2>
+      <div class="flex gap-1 text-xs">
+        <button onclick="setRange('24h')" id="range4-24h" class="range4-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+        <button onclick="setRange('7d')"  id="range4-7d"  class="range4-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+        <button onclick="setRange('21d')" id="range4-21d" class="range4-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+      </div>
     </div>
     <div style="height:180px;"><canvas id="chartRpmPitch"></canvas></div>
   </div>
@@ -272,19 +282,29 @@ function drawGauge(canvasId, value, max, color, thresholds) {
 }
 
 // ── Charts ────────────────────────────────────────────────────────────────────
-const CHART_OPTS = {
-  responsive: true, maintainAspectRatio: false,
-  animation: { duration: 300 },
-  interaction: { mode: 'index', intersect: false },
-  plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12 }, position: 'bottom' } },
-  scales: {
-    x: { type: 'time', time: { displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' } }, grid: { color: 'rgba(51,65,85,0.5)' }, ticks: { color: '#64748b', maxTicksLimit: 8, font: { size: 10 } } },
-    y:  { grid: { color: 'rgba(51,65,85,0.5)' }, ticks: { color: '#64748b', font: { size: 10 } } },
-  }
-};
+// Build chart options with correct x-axis time unit per range
+function chartOpts(range, extraScales) {
+  const unit = range === '24h' ? 'hour' : (range === '7d' ? 'day' : 'day');
+  const maxTicks = range === '24h' ? 8 : (range === '7d' ? 7 : 7);
+  const fmt = range === '24h'
+    ? { hour: 'HH:mm', minute: 'HH:mm' }
+    : { day: 'd MMM', hour: 'HH:mm' };
+  const base = {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 300 },
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12 }, position: 'bottom' } },
+    scales: {
+      x: { type: 'time', time: { unit, displayFormats: fmt }, grid: { color: 'rgba(51,65,85,0.5)' }, ticks: { color: '#64748b', maxTicksLimit: maxTicks, font: { size: 10 } } },
+      y: { grid: { color: 'rgba(51,65,85,0.5)' }, ticks: { color: '#64748b', font: { size: 10 } } },
+      ...(extraScales || {})
+    }
+  };
+  return base;
+}
 
 let chartPW, chartT, chartV, chartRP;
-let currentRange = '24h', currentRange2 = '24h';
+let currentRange = '24h';
 
 async function fetchMetric(metric, range) {
   const r = await fetch(`/api/turbine/${TURBINE_ID}/chart?metric=${metric}&range=${range}`);
@@ -298,11 +318,11 @@ async function loadPowerWindChart(range) {
   chartPW = new Chart(ctx, {
     data: {
       datasets: [
-        { type:'bar', label: LANG==='da'?'Effekt (kW)':'Power (kW)', data: pw.map(d=>({x:new Date(d.t),y:d.v})), backgroundColor:'rgba(14,165,233,0.35)', borderColor:'rgba(14,165,233,0.8)', borderWidth:1, borderRadius:1, yAxisID:'y' },
+        { type:'bar',  label: LANG==='da'?'Effekt (kW)':'Power (kW)', data: pw.map(d=>({x:new Date(d.t),y:d.v})), backgroundColor:'rgba(14,165,233,0.35)', borderColor:'rgba(14,165,233,0.8)', borderWidth:1, borderRadius:1, yAxisID:'y' },
         { type:'line', label: LANG==='da'?'Vind (m/s)':'Wind (m/s)', data: wd.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'rgba(52,211,153,0.8)', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y2' },
       ]
     },
-    options: { ...CHART_OPTS, scales: { ...CHART_OPTS.scales, y:{...CHART_OPTS.scales.y,position:'left'}, y2:{grid:{display:false},ticks:{color:'#34d399',font:{size:10}},position:'right'} } }
+    options: chartOpts(range, { y:{ grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b',font:{size:10}}, position:'left' }, y2:{ grid:{display:false}, ticks:{color:'#34d399',font:{size:10}}, position:'right' } })
   });
 }
 
@@ -319,24 +339,27 @@ async function loadTempChart(range) {
     type:'line',
     data: {
       datasets: [
-        { label: LANG==='da'?'Leje':'Bearing', data: bt.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#f97316', pointRadius:0, borderWidth:1.5, tension:0.4 },
-        { label: LANG==='da'?'Gearkasse':'Gearbox', data: gt.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#fb923c', pointRadius:0, borderWidth:1.5, tension:0.4 },
-        { label: LANG==='da'?'Generator':'Generator', data: gen.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#fbbf24', pointRadius:0, borderWidth:1.5, tension:0.4 },
-        { label: LANG==='da'?'Olie':'Oil', data: ot.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#a78bfa', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label: LANG==='da'?'Leje':'Bearing',     data: bt.map(d=>({x:new Date(d.t),y:d.v})),  borderColor:'#f97316', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label: LANG==='da'?'Gearkasse':'Gearbox', data: gt.map(d=>({x:new Date(d.t),y:d.v})),  borderColor:'#fb923c', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label: 'Generator',                        data: gen.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#fbbf24', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label: LANG==='da'?'Olie':'Oil',           data: ot.map(d=>({x:new Date(d.t),y:d.v})),  borderColor:'#a78bfa', pointRadius:0, borderWidth:1.5, tension:0.4 },
       ]
     },
-    options: CHART_OPTS
+    options: chartOpts(range)
   });
 }
 
-async function loadVibrationChart() {
+async function loadVibrationChart(range) {
+  range = range || currentRange;
   const [vx, vy, vz] = await Promise.all([
-    fetchMetric('vibration_gearbox_x', currentRange),
-    fetchMetric('vibration_gearbox_y', currentRange),
-    fetchMetric('vibration_gearbox_z', currentRange),
+    fetchMetric('vibration_gearbox_x', range),
+    fetchMetric('vibration_gearbox_y', range),
+    fetchMetric('vibration_gearbox_z', range),
   ]);
   const ctx = document.getElementById('chartVibration').getContext('2d');
   if (chartV) chartV.destroy();
+  const opts = chartOpts(range);
+  opts.plugins.annotation = { annotations: { threshold: { type:'line', yMin:0.5, yMax:0.5, borderColor:'rgba(239,68,68,0.5)', borderWidth:1, borderDash:[6,4], label:{content:LANG==='da'?'Grænse':'Limit',enabled:true,color:'#ef4444',font:{size:9}} } } };
   chartV = new Chart(ctx, {
     type:'line',
     data: {
@@ -346,43 +369,41 @@ async function loadVibrationChart() {
         { label:'Z', data: vz.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#3b82f6', pointRadius:0, borderWidth:1.5, tension:0.4 },
       ]
     },
-    options: { ...CHART_OPTS, plugins: { ...CHART_OPTS.plugins, annotation: {
-      annotations: { threshold: { type:'line', yMin:0.5, yMax:0.5, borderColor:'rgba(239,68,68,0.5)', borderWidth:1, borderDash:[6,4], label:{content:LANG==='da'?'Grænse':'Limit',enabled:true,color:'#ef4444',font:{size:9}} } }
-    }}}
+    options: opts
   });
 }
 
-async function loadRpmPitchChart() {
+async function loadRpmPitchChart(range) {
+  range = range || currentRange;
   const [rpm, pitch] = await Promise.all([
-    fetchMetric('rotor_rpm', currentRange),
-    fetchMetric('pitch_angle_deg', currentRange),
+    fetchMetric('rotor_rpm', range),
+    fetchMetric('pitch_angle_deg', range),
   ]);
   const ctx = document.getElementById('chartRpmPitch').getContext('2d');
   if (chartRP) chartRP.destroy();
   chartRP = new Chart(ctx, {
     data: {
       datasets: [
-        { type:'line', label:'RPM', data: rpm.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#a855f7', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y' },
+        { type:'line', label:'RPM',                           data: rpm.map(d=>({x:new Date(d.t),y:d.v})),   borderColor:'#a855f7', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y' },
         { type:'line', label: LANG==='da'?'Pitch (°)':'Pitch (°)', data: pitch.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#06b6d4', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y2' },
       ]
     },
-    options: { ...CHART_OPTS, scales: { ...CHART_OPTS.scales, y:{...CHART_OPTS.scales.y,position:'left'}, y2:{grid:{display:false},ticks:{color:'#06b6d4',font:{size:10}},position:'right'} } }
+    options: chartOpts(range, { y:{ grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b',font:{size:10}}, position:'left' }, y2:{ grid:{display:false}, ticks:{color:'#06b6d4',font:{size:10}}, position:'right' } })
   });
 }
 
+// Single unified range setter — updates all 4 charts and all 4 button groups
 function setRange(r) {
   currentRange = r;
-  document.querySelectorAll('.range-btn').forEach(b=>b.className='range-btn px-2 py-0.5 rounded text-slate-400 hover:text-white');
-  document.getElementById('range-'+r).className='range-btn px-2 py-0.5 rounded bg-sky-700 text-white';
+  [['range-btn','range'], ['range2-btn','range2'], ['range3-btn','range3'], ['range4-btn','range4']].forEach(([cls, prefix]) => {
+    document.querySelectorAll('.'+cls).forEach(b => b.className = cls+' px-2 py-0.5 rounded text-slate-400 hover:text-white');
+    const btn = document.getElementById(prefix+'-'+r);
+    if (btn) btn.className = cls+' px-2 py-0.5 rounded bg-sky-700 text-white';
+  });
   loadPowerWindChart(r);
-  loadVibrationChart();
-  loadRpmPitchChart();
-}
-function setRange2(r) {
-  currentRange2 = r;
-  document.querySelectorAll('.range2-btn').forEach(b=>b.className='range2-btn px-2 py-0.5 rounded text-slate-400 hover:text-white');
-  document.getElementById('range2-'+r).className='range2-btn px-2 py-0.5 rounded bg-sky-700 text-white';
   loadTempChart(r);
+  loadVibrationChart(r);
+  loadRpmPitchChart(r);
 }
 
 // ── Live Data & Gauges ────────────────────────────────────────────────────────
@@ -573,8 +594,8 @@ async function runAiAnalysis() {
 loadLiveData();
 loadPowerWindChart('24h');
 loadTempChart('24h');
-loadVibrationChart();
-loadRpmPitchChart();
+loadVibrationChart('24h');
+loadRpmPitchChart('24h');
 initTurbineMap({{ turbine.latitude }}, {{ turbine.longitude }});
 
 setInterval(loadLiveData, 60000);
