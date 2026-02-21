@@ -474,7 +474,7 @@ Respond with this exact JSON structure:
                 timestamp=datetime.utcnow(),
                 severity="info",
                 category="AI Analysis",
-                code="AI Diag",        # String(16) limit — keep short
+                code="AI Diagnosis",
                 message_en=summary_text[:500],
                 message_da=summary_text[:500],
                 resolved=False,
@@ -487,6 +487,7 @@ Respond with this exact JSON structure:
         except Exception as db_exc:
             db.session.rollback()
             db_error = str(db_exc)
+            print(f"[AI] DB save failed: {db_error}")
 
         return jsonify({
             "status": "ok",
@@ -494,7 +495,6 @@ Respond with this exact JSON structure:
             "structured": structured,
             "raw": raw_text,
             "event_id": event_id,
-            "db_error": db_error,   # exposed for debugging; None when all good
         })
     except Exception as e:
         db.session.rollback()
