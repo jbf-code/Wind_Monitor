@@ -268,14 +268,11 @@ def api_events():
     events = q.limit(limit).all()
     return jsonify([_event_dict(e) for e in events])
 
-# ─── API: AI Stub ──────────────────────────────────────────────────────────────
+# ─── API: AI Analysis ──────────────────────────────────────────────────────────
 @app.route('/api/ai/analyze/<int:turbine_id>', methods=['POST'])
 @login_required
 def api_ai_analyze(turbine_id):
-    """
-    Stub endpoint for AI analysis.
-    In production: call Claude API with latest sensor data.
-    """
+    """Call Claude API with latest sensor data and events for diagnostic analysis."""
     if not ANTHROPIC_API_KEY:
         return jsonify({
             "status": "stub",
@@ -283,12 +280,91 @@ def api_ai_analyze(turbine_id):
             "turbine_id": turbine_id,
         }), 200
 
-    # TODO: Real implementation
-    # from anthropic import Anthropic
-    # client = Anthropic(api_key=ANTHROPIC_API_KEY)
-    # ... build prompt with latest sensor readings ...
-    # response = client.messages.create(...)
-    return jsonify({"status": "stub", "turbine_id": turbine_id})
+    turbine = Turbine.query.get_or_404(turbine_id)
+
+    # Fetch last 100 minute-resolution readings
+    readings = (SensorReading.query
+                .filter_by(turbine_id=turbine_id, resolution='min')
+                .order_by(SensorReading.timestamp.desc())
+                .limit(100).all())
+    readings = list(reversed(readings))
+
+    # Fetch last 20 unresolved events
+    events = (TurbineEvent.query
+              .filter_by(turbine_id=turbine_id, resolved=False)
+              .order_by(TurbineEvent.timestamp.desc())
+              .limit(20).all())
+
+    def fmt_readings(rs):
+        lines = []
+        for r in rs:
+            lines.append(
+                f"{r.timestamp.strftime('%Y-%m-%d %H:%M')} | "
+                f"power={r.power_output_kw:.1f}kW wind={r.wind_speed_ms:.1f}m/s "
+                f"rpm={r.rotor_rpm:.1f} pitch={r.pitch_angle_deg:.1f}deg "
+                f"bearing_t={r.bearing_temp_c:.1f}C gearbox_t={r.gearbox_temp_c:.1f}C "
+                f"gen_t={r.generator_temp_c:.1f}C oil_t={r.oil_temp_c:.1f}C "
+                f"vib_x={r.vibration_gearbox_x:.3f}g vib_y={r.vibration_gearbox_y:.3f}g "
+                f"vib_z={r.vibration_gearbox_z:.3f}g vib_bearing={r.vibration_bearing:.3f}g "
+                f"acoustic={r.acoustic_level_db:.1f}dB"
+            )
+        return "\n".join(lines)
+
+    def fmt_events(evs):
+        if not evs:
+            return "No active alerts."
+        lines = []
+        for e in evs:
+            lines.append(
+                f"{e.timestamp.strftime('%Y-%m-%d %H:%M')} [{e.severity.upper()}] "
+                f"{e.category}/{e.code}: {e.message_en}"
+            )
+        return "\n".join(lines)
+
+    prompt = f"""You are an expert wind turbine condition monitoring engineer. Analyze the following sensor data and provide a concise diagnostic report.
+
+## Turbine Info
+- Name: {turbine.name}
+- Make/Model: {turbine.make} {turbine.model}
+- Serial: {turbine.serial_number}
+- Rated power: {turbine.rated_power_kw} kW
+- Hub height: {turbine.hub_height_m} m | Rotor diameter: {turbine.rotor_diameter_m} m
+- Build date: {turbine.build_date} | Last service: {turbine.last_service_date}
+- Current status: {turbine.status}
+
+## Active Alerts (unresolved)
+{fmt_events(events)}
+
+## Recent Sensor Readings (last {len(readings)} minutes)
+{fmt_readings(readings)}
+
+## Your Task
+Provide a structured diagnostic report with these sections:
+1. **Summary** - One sentence on the turbine's overall condition.
+2. **Key Findings** - Bullet points of any anomalies or concerning trends in the data.
+3. **Root Cause Assessment** - Most likely cause(s) of any issues detected.
+4. **P-F Curve Position** - Estimate where on the failure curve this turbine sits (early warning / developing / imminent).
+5. **Recommended Actions** - Prioritized action items (immediate / within 7 days / scheduled maintenance).
+6. **Risk if Ignored** - Brief statement of consequences if no action is taken.
+
+Be specific and reference actual values from the data. Keep the report concise and actionable."""
+
+    try:
+        from anthropic import Anthropic
+        client = Anthropic(api_key=ANTHROPIC_API_KEY)
+        response = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        analysis = response.content[0].text
+        return jsonify({
+            "status": "ok",
+            "turbine_id": turbine_id,
+            "analysis": analysis,
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 def _reading_dict(r):

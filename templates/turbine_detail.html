@@ -434,8 +434,12 @@ async function runAiAnalysis() {
     document.getElementById('aiResult').textContent = LANG==='da'
       ? `AI-integration er klar til brug. Tilføj din ANTHROPIC_API_KEY i miljøvariablerne for at aktivere Claude-analyser af sensordata i realtid.\n\nDette endpoint (/api/ai/analyze/${TURBINE_ID}) er forberedt til at sende de seneste ~1.000 målepunkter samt aktive advarsler til Claude til diagnosticering og P-F kurvevurdering.`
       : `AI integration is ready. Add your ANTHROPIC_API_KEY environment variable to enable real-time Claude diagnostic analysis of sensor data.\n\nThis endpoint (/api/ai/analyze/${TURBINE_ID}) is prepared to send the latest ~1,000 data points and active alerts to Claude for diagnostics and P-F curve assessment.`;
+  } else if (d.status === 'error') {
+    document.getElementById('aiResult').textContent = `Error: ${d.message}`;
   } else {
-    document.getElementById('aiResult').textContent = d.analysis || JSON.stringify(d, null, 2);
+    // Render markdown-style bold/headers as plain readable text
+    const text = d.analysis || JSON.stringify(d, null, 2);
+    document.getElementById('aiResult').textContent = text;
   }
 }
 
