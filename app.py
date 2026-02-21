@@ -228,36 +228,41 @@ def api_chart(turbine_id):
 @app.route('/api/fleet/power')
 @login_required
 def api_fleet_power():
-    """Aggregated total fleet power. ?range=48h (default) or 7d."""
+    """Aggregated total fleet power. ?range=48h (default) or 7d.
+    Both ranges use resolution='min' rows (last 7 days are all minute-resolution).
+    48h groups by hour; 7d groups by day.
+    """
     range_param = request.args.get('range', '48h')
     now = datetime.utcnow()
+    is_sqlite = 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
+
     if range_param == '7d':
         since = now - timedelta(days=7)
-        resolution_filter = 'hour'   # use pre-aggregated hourly rows
+        if is_sqlite:
+            bucket_expr = func.strftime('%Y-%m-%dT00:00:00', SensorReading.timestamp).label('bucket')
+        else:
+            bucket_expr = func.date_trunc('day', SensorReading.timestamp).label('bucket')
     else:
         since = now - timedelta(hours=48)
-        resolution_filter = 'min'    # use minute rows, group into hours
-
-    is_sqlite = 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
-    if is_sqlite:
-        hour_expr = func.strftime('%Y-%m-%dT%H:00:00', SensorReading.timestamp).label('hour')
-    else:
-        hour_expr = func.date_trunc('hour', SensorReading.timestamp).label('hour')
+        if is_sqlite:
+            bucket_expr = func.strftime('%Y-%m-%dT%H:00:00', SensorReading.timestamp).label('bucket')
+        else:
+            bucket_expr = func.date_trunc('hour', SensorReading.timestamp).label('bucket')
 
     rows = (db.session.query(
-                hour_expr,
+                bucket_expr,
                 func.sum(SensorReading.power_output_kw).label('total_kw'),
                 func.avg(SensorReading.wind_speed_ms).label('avg_wind'),
             )
             .filter(
                 SensorReading.timestamp >= since,
-                SensorReading.resolution == resolution_filter,
+                SensorReading.resolution == 'min',
             )
-            .group_by('hour')
-            .order_by('hour')
+            .group_by('bucket')
+            .order_by('bucket')
             .all())
     return jsonify([
-        {"t": r.hour, "total_kw": round(r.total_kw or 0, 1), "avg_wind": round(r.avg_wind or 0, 2)}
+        {"t": r.bucket, "total_kw": round(r.total_kw or 0, 1), "avg_wind": round(r.avg_wind or 0, 2)}
         for r in rows
     ])
 
