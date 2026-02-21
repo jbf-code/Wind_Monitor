@@ -117,7 +117,7 @@ const labels = {
     na: 'N/A', noData: 'Ingen nylige data',
   }
 };
-const L = labels[LANG] || labels.en;
+const TXT = labels[LANG] || labels.en;
 const STATUS_ICON = { operational:'🟢', warning:'🟡', fault:'🔴', offline:'⚫' };
 
 // ── Load Fleet Data ──────────────────────────────────────────────────────────
@@ -159,8 +159,8 @@ function renderFleetList(data) {
   const el = document.getElementById('fleetList');
   if (!filtered.length) { el.innerHTML = `<div class="flex items-center justify-center h-20 text-slate-500 text-sm">${LANG==='da'?'Ingen møller':'No turbines'}</div>`; return; }
   el.innerHTML = filtered.map(t => {
-    const pw  = t.latest?.power_kw != null ? (t.latest.power_kw/1000).toFixed(2) + ' MW' : L.na;
-    const wd  = t.latest?.wind_ms  != null ? t.latest.wind_ms.toFixed(1)  + ' m/s' : L.na;
+    const pw  = t.latest?.power_kw != null ? (t.latest.power_kw/1000).toFixed(2) + ' MW' : TXT.na;
+    const wd  = t.latest?.wind_ms  != null ? t.latest.wind_ms.toFixed(1)  + ' m/s' : TXT.na;
     return `<a href="/turbine/${t.id}" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-700/50 transition-colors cursor-pointer">
       <div class="text-lg">${STATUS_ICON[t.status] || '⚫'}</div>
       <div class="flex-1 min-w-0">
@@ -193,10 +193,10 @@ function renderTurbineGrid(data) {
       </div>
       <div class="text-xs text-slate-500">${t.make}</div>
       <div class="grid grid-cols-2 gap-1 text-xs mt-1">
-        <div><span class="text-slate-500">${L.power}</span><br><span class="text-sky-300 font-semibold">${pw} MW</span></div>
-        <div><span class="text-slate-500">${L.wind}</span><br><span class="text-emerald-300 font-semibold">${wd} m/s</span></div>
-        <div><span class="text-slate-500">${L.rpm}</span><br><span class="text-purple-300">${rp}</span></div>
-        <div><span class="text-slate-500">${L.temp}</span><br><span class="text-orange-300">${tp}°C</span></div>
+        <div><span class="text-slate-500">${TXT.power}</span><br><span class="text-sky-300 font-semibold">${pw} MW</span></div>
+        <div><span class="text-slate-500">${TXT.wind}</span><br><span class="text-emerald-300 font-semibold">${wd} m/s</span></div>
+        <div><span class="text-slate-500">${TXT.rpm}</span><br><span class="text-purple-300">${rp}</span></div>
+        <div><span class="text-slate-500">${TXT.temp}</span><br><span class="text-orange-300">${tp}°C</span></div>
       </div>
       ${t.open_events > 0 ? `<div class="text-xs text-amber-400 font-medium">⚠ ${t.open_events} ${LANG==='da'?'advarsel(er)':'alert(s)'}</div>` : ''}
     </a>`;
