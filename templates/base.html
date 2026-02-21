@@ -27,9 +27,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <!-- Chart.js date adapter -->
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-  <!-- Leaflet -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <!-- Google Maps loaded per-page via {% block head_extra %} -->
 
   <style>
     body { font-family: 'Segoe UI', system-ui, sans-serif; background:#0f172a; color:#e2e8f0; }
@@ -46,7 +44,7 @@
     .nav-link:hover { color:#38bdf8; }
     .gauge-container { position:relative; display:inline-flex; align-items:center; justify-content:center; }
     #map { z-index:0; }
-    .leaflet-container { background:#1e293b !important; }
+    #turbineMap { z-index:0; }
     /* Custom scrollbar */
     ::-webkit-scrollbar { width:6px; height:6px; }
     ::-webkit-scrollbar-track { background:#1e293b; }

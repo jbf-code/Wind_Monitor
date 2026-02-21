@@ -30,9 +30,10 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 
 # AI API keys (stubs — replace with real keys when ready)
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
-GEMINI_API_KEY    = os.environ.get('GOOGLE_GEMINI_API_KEY', '')
-ADMIN_PASSWORD    = os.environ.get('ADMIN_PASSWORD', 'JBF_2026')
+ANTHROPIC_API_KEY  = os.environ.get('ANTHROPIC_API_KEY', '')
+GEMINI_API_KEY     = os.environ.get('GOOGLE_GEMINI_API_KEY', '')
+GOOGLE_MAPS_KEY    = os.environ.get('GOOGLE_MAPS_KEY', '')
+ADMIN_PASSWORD     = os.environ.get('ADMIN_PASSWORD', 'JBF_2026')
 
 db.init_app(app)
 login_manager = LoginManager(app)
@@ -90,13 +91,13 @@ def logout():
 @app.route('/')
 @login_required
 def dashboard():
-    return render_template('dashboard.html')
+    return render_template('dashboard.html', google_maps_key=GOOGLE_MAPS_KEY)
 
 @app.route('/turbine/<int:turbine_id>')
 @login_required
 def turbine_detail(turbine_id):
     turbine = Turbine.query.get_or_404(turbine_id)
-    return render_template('turbine_detail.html', turbine=turbine)
+    return render_template('turbine_detail.html', turbine=turbine, google_maps_key=GOOGLE_MAPS_KEY)
 
 @app.route('/status')
 def status():
