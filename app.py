@@ -229,8 +229,8 @@ def api_chart(turbine_id):
 @login_required
 def api_fleet_power():
     """Aggregated total fleet power. ?range=48h (default) or 7d.
-    Both ranges use resolution='min' rows (last 7 days are all minute-resolution).
-    48h groups by hour; 7d groups by day.
+    Queries both resolution types to handle the boundary between hourly
+    and minute data, then re-buckets by hour (48h) or day (7d).
     """
     range_param = request.args.get('range', '48h')
     now = datetime.utcnow()
@@ -249,6 +249,7 @@ def api_fleet_power():
         else:
             bucket_expr = func.date_trunc('hour', SensorReading.timestamp).label('bucket')
 
+    # Query both resolutions — the 7d window may span the hour/min boundary
     rows = (db.session.query(
                 bucket_expr,
                 func.sum(SensorReading.power_output_kw).label('total_kw'),
@@ -256,7 +257,7 @@ def api_fleet_power():
             )
             .filter(
                 SensorReading.timestamp >= since,
-                SensorReading.resolution == 'min',
+                SensorReading.resolution.in_(['min', 'hour']),
             )
             .group_by(bucket_expr)
             .order_by(bucket_expr)
