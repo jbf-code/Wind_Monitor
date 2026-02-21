@@ -14,14 +14,19 @@ app = Flask(__name__)
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(
+_db_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     os.environ.get('DATABASE_PATH', 'wind_monitor.db')
-)
+))
+# Railway injects postgres:// but SQLAlchemy requires postgresql://
+if _db_url.startswith('postgres://'):
+    _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
-    'connect_args': {'timeout': 30},
+    'pool_size': 5,
+    'max_overflow': 10,
 }
 
 # AI API keys (stubs — replace with real keys when ready)
@@ -226,8 +231,15 @@ def api_fleet_power():
     """Aggregated total fleet power for the last 24h (hourly buckets)."""
     now = datetime.utcnow()
     since = now - timedelta(hours=48)
+    from sqlalchemy import text
+    is_sqlite = 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
+    if is_sqlite:
+        hour_expr = func.strftime('%Y-%m-%dT%H:00:00', SensorReading.timestamp).label('hour')
+    else:
+        hour_expr = func.date_trunc('hour', SensorReading.timestamp).label('hour')
+
     rows = (db.session.query(
-                func.strftime('%Y-%m-%dT%H:00:00', SensorReading.timestamp).label('hour'),
+                hour_expr,
                 func.sum(SensorReading.power_output_kw).label('total_kw'),
                 func.avg(SensorReading.wind_speed_ms).label('avg_wind'),
             )
