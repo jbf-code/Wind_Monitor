@@ -469,9 +469,19 @@ function initTurbineMap(lat, lng) {
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap', maxZoom: 18
   }).addTo(m);
+  const col = '#38bdf8';
   const icon = L.divIcon({
-    html: `<div style="background:#0ea5e9;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 6px rgba(14,165,233,0.8)"></div>`,
-    iconSize:[18,18], iconAnchor:[9,9], className:''
+    html: `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="48" viewBox="0 0 36 48">
+      <ellipse cx="18" cy="46" rx="8" ry="2" fill="rgba(0,0,0,0.3)"/>
+      <polygon points="15.8,20 20.2,20 22,43 14,43" fill="${col}"/>
+      <rect x="12" y="42" width="12" height="2.5" rx="1.2" fill="${col}"/>
+      <rect x="13.5" y="16.5" width="9" height="4.5" rx="1.2" fill="${col}"/>
+      <circle cx="18" cy="18" r="2" fill="#0f172a" stroke="${col}" stroke-width="1.2"/>
+      <path d="M18 15.8 C16.8 11 17.2 6.5 18 2 C18.8 6.5 19.2 11 18 15.8Z" fill="${col}"/>
+      <path d="M16.2 19.2 C11.5 21.8 6.8 23 2 23.5 C6.2 20.5 11 18.5 16.2 19.2Z" fill="${col}"/>
+      <path d="M19.8 19.2 C24.5 21.8 29.2 23 34 23.5 C29.8 20.5 25 18.5 19.8 19.2Z" fill="${col}"/>
+    </svg>`,
+    iconSize:[36,48], iconAnchor:[18,46], popupAnchor:[0,-48], className:''
   });
   L.marker([lat, lng], { icon }).addTo(m);
   m.setView([lat, lng], 13);

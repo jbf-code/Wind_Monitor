@@ -72,10 +72,22 @@
     </button>
     <!-- Logo -->
     <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2">
-      <svg class="w-7 h-7 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="12" cy="12" r="2"/>
-        <path d="M12 10V2M12 10l-6.5-6.5M12 10l6.5-6.5" stroke-linecap="round"/>
-        <path d="M12 2a10 10 0 1 0 10 10" stroke-linecap="round"/>
+      <!-- Wind turbine silhouette -->
+      <svg class="w-7 h-7" viewBox="0 0 28 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- Tower: tapered trapezoid -->
+        <polygon points="12.2,16 15.8,16 17,34 11,34" fill="#38bdf8"/>
+        <!-- Foundation bar -->
+        <rect x="9" y="33" width="10" height="2" rx="1" fill="#38bdf8"/>
+        <!-- Nacelle -->
+        <rect x="11" y="13" width="6" height="3.5" rx="1" fill="#38bdf8"/>
+        <!-- Hub -->
+        <circle cx="14" cy="14" r="1.5" fill="#0f172a" stroke="#38bdf8" stroke-width="1"/>
+        <!-- Blade up -->
+        <path d="M14 12.5 C13.2 9 13.5 5.5 14 2 C14.5 5.5 14.8 9 14 12.5Z" fill="#38bdf8"/>
+        <!-- Blade lower-left -->
+        <path d="M12.7 14.8 C9.5 16.8 6.2 17.8 3 18 C5.8 15.8 8.8 14.2 12.7 14.8Z" fill="#38bdf8"/>
+        <!-- Blade lower-right -->
+        <path d="M15.3 14.8 C18.5 16.8 21.8 17.8 25 18 C22.2 15.8 19.2 14.2 15.3 14.8Z" fill="#38bdf8"/>
       </svg>
       <span class="font-bold text-white text-lg tracking-tight">Wind<span class="text-sky-400">Monitor</span></span>
     </a>
