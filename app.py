@@ -258,13 +258,35 @@ def api_fleet_power():
                 SensorReading.timestamp >= since,
                 SensorReading.resolution == 'min',
             )
-            .group_by('bucket')
-            .order_by('bucket')
+            .group_by(bucket_expr)
+            .order_by(bucket_expr)
             .all())
     return jsonify([
-        {"t": r.bucket, "total_kw": round(r.total_kw or 0, 1), "avg_wind": round(r.avg_wind or 0, 2)}
+        {"t": r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]),
+         "total_kw": round(r[1] or 0, 1),
+         "avg_wind": round(r[2] or 0, 2)}
         for r in rows
     ])
+
+# ─── API: Debug ───────────────────────────────────────────────────────────────
+@app.route('/api/debug/data')
+@login_required
+def api_debug_data():
+    """Debug: show resolution counts and timestamp ranges in the DB."""
+    from sqlalchemy import text
+    rows = db.session.execute(text(
+        "SELECT resolution, COUNT(*) as cnt, MIN(timestamp) as oldest, MAX(timestamp) as newest "
+        "FROM sensor_readings GROUP BY resolution ORDER BY resolution"
+    )).fetchall()
+    now = datetime.utcnow()
+    return jsonify({
+        "server_utc": now.isoformat(),
+        "resolutions": [
+            {"resolution": r[0], "count": r[1],
+             "oldest": str(r[2]), "newest": str(r[3])}
+            for r in rows
+        ]
+    })
 
 # ─── API: Events ──────────────────────────────────────────────────────────────
 @app.route('/api/events')
