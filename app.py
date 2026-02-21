@@ -448,12 +448,12 @@ Respond with this exact JSON structure:
             turbine_id=turbine_id,
             timestamp=datetime.utcnow(),
             severity="info",
-            category="ai_analysis",
-            code="AI-DIAG",
+            category="AI Analysis",
+            code="AI Diagnosis",
             message_en=structured.get("summary", raw_text[:200]) if structured else raw_text[:200],
             message_da=structured.get("summary", raw_text[:200]) if structured else raw_text[:200],
-            resolved=True,
-            resolved_at=datetime.utcnow(),
+            resolved=False,
+            resolved_at=None,
             ai_analysis=log_payload,
         )
         db.session.add(ai_event)
