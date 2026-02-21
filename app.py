@@ -172,25 +172,14 @@ def api_chart(turbine_id):
     Query params:
       metric  - field name in SensorReading
       range   - '24h' | '7d' | '21d' (default '24h')
-      res     - 'auto' | 'min' | 'hour' (default 'auto')
+
+    Strategy:
+      24h  → raw minute rows (no grouping needed)
+      7d   → group by hour, query both resolutions (boundary between hour/min data)
+      21d  → group by hour, query both resolutions
     """
     metric = request.args.get('metric', 'power_output_kw')
     rng    = request.args.get('range', '24h')
-    res    = request.args.get('res', 'auto')
-
-    now = datetime.utcnow()
-    if rng == '24h':
-        since = now - timedelta(hours=24)
-        resolution = 'min'
-    elif rng == '7d':
-        since = now - timedelta(days=7)
-        resolution = 'hour'
-    else:  # 21d
-        since = now - timedelta(days=21)
-        resolution = 'hour'
-
-    if res != 'auto':
-        resolution = res
 
     allowed_metrics = {
         'power_output_kw', 'wind_speed_ms', 'rotor_rpm', 'pitch_angle_deg',
@@ -203,23 +192,53 @@ def api_chart(turbine_id):
     if metric not in allowed_metrics:
         abort(400, f"Invalid metric: {metric}")
 
+    now = datetime.utcnow()
+    is_sqlite = 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
     col = getattr(SensorReading, metric)
-    rows = (SensorReading.query
-            .with_entities(SensorReading.timestamp, col)
+
+    if rng == '24h':
+        # Raw minute data — no grouping needed
+        since = now - timedelta(hours=24)
+        rows = (SensorReading.query
+                .with_entities(SensorReading.timestamp, col)
+                .filter(
+                    SensorReading.turbine_id == turbine_id,
+                    SensorReading.timestamp >= since,
+                    SensorReading.resolution == 'min',
+                )
+                .order_by(SensorReading.timestamp.asc())
+                .all())
+        return jsonify({
+            "metric": metric, "range": rng, "resolution": "min",
+            "data": [
+                {"t": r[0].isoformat(), "v": round(r[1], 3) if r[1] is not None else None}
+                for r in rows
+            ]
+        })
+
+    # 7d / 21d — group into hourly buckets, query both resolutions
+    since = now - timedelta(days=7 if rng == '7d' else 21)
+    if is_sqlite:
+        bucket_expr = func.strftime('%Y-%m-%dT%H:00:00', SensorReading.timestamp).label('bucket')
+    else:
+        bucket_expr = func.date_trunc('hour', SensorReading.timestamp).label('bucket')
+
+    rows = (db.session.query(bucket_expr, func.avg(col).label('val'))
             .filter(
                 SensorReading.turbine_id == turbine_id,
                 SensorReading.timestamp >= since,
-                SensorReading.resolution == resolution,
+                SensorReading.resolution.in_(['min', 'hour']),
+                col.isnot(None),
             )
-            .order_by(SensorReading.timestamp.asc())
+            .group_by(bucket_expr)
+            .order_by(bucket_expr)
             .all())
 
     return jsonify({
-        "metric": metric,
-        "range": rng,
-        "resolution": resolution,
+        "metric": metric, "range": rng, "resolution": "hour",
         "data": [
-            {"t": r[0].isoformat(), "v": round(r[1], 3) if r[1] is not None else None}
+            {"t": r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]),
+             "v": round(r[1], 3) if r[1] is not None else None}
             for r in rows
         ]
     })
