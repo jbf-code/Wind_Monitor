@@ -139,7 +139,7 @@ def api_turbine(turbine_id):
     events = (TurbineEvent.query
               .filter_by(turbine_id=turbine_id)
               .order_by(TurbineEvent.timestamp.desc())
-              .limit(20).all())
+              .limit(50).all())
     latest = (SensorReading.query
               .filter_by(turbine_id=turbine_id)
               .order_by(SensorReading.timestamp.desc())
@@ -289,6 +289,21 @@ def api_fleet_power():
     ])
 
 # ─── API: Debug ───────────────────────────────────────────────────────────────
+@app.route('/api/debug/ai-events')
+@login_required
+def api_debug_ai_events():
+    """Debug: list all AI Diagnosis events to verify DB persistence across deploys."""
+    events = (TurbineEvent.query
+              .filter_by(category='AI Analysis')
+              .order_by(TurbineEvent.timestamp.desc())
+              .all())
+    return jsonify({
+        "count": len(events),
+        "events": [{"id": e.id, "turbine_id": e.turbine_id,
+                    "ts": e.timestamp.isoformat(), "code": e.code,
+                    "summary": e.message_en[:120]} for e in events]
+    })
+
 @app.route('/api/debug/data')
 @login_required
 def api_debug_data():
@@ -497,6 +512,27 @@ def _reading_dict(r):
         "power_factor": r.power_factor,
     }
 
+_FRIENDLY_CODES = {
+    # Pattern-based mapping: prefix → label
+    'TEMP':  'Temperature Alert',
+    'VIB':   'Vibration Alert',
+    'PERF':  'Performance Alert',
+    'COMM':  'Communication Alert',
+    'MAINT': 'Maintenance',
+    'GRID':  'Grid Alert',
+    'POWER': 'Power Alert',
+}
+
+def _friendly_code(code, category):
+    """Return a human-readable label for an event code."""
+    if category == 'AI Analysis':
+        return 'AI Diagnosis'
+    # Match by prefix (e.g. TEMP-001 → Temperature Alert)
+    prefix = code.split('-')[0].upper()
+    if prefix in _FRIENDLY_CODES:
+        return _FRIENDLY_CODES[prefix]
+    return code  # fallback to raw code
+
 def _event_dict(e):
     lang = session.get('lang', 'en')
     return {
@@ -506,6 +542,7 @@ def _event_dict(e):
         "severity": e.severity,
         "category": e.category,
         "code": e.code,
+        "friendly_code": _friendly_code(e.code, e.category),
         "message": e.message_da if lang == 'da' else e.message_en,
         "message_en": e.message_en,
         "message_da": e.message_da,

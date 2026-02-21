@@ -363,9 +363,9 @@ async function loadEvents() {
   el.innerHTML = events.map(e => `
     <div class="px-4 py-2.5 border-b border-slate-800 hover:bg-slate-700/30 transition-colors">
       <div class="flex items-start gap-2">
-        <span class="text-sm mt-0.5">${sevIcon[e.severity]||'⚪'}</span>
+        <span class="text-sm mt-0.5">${e.category==='AI Analysis' ? '🤖' : (sevIcon[e.severity]||'⚪')}</span>
         <div class="flex-1 min-w-0">
-          <div class="text-xs font-semibold ${sevCol[e.severity]||'text-slate-300'}">${e.code} · T-${e.turbine_id}</div>
+          <div class="text-xs font-semibold ${sevCol[e.severity]||'text-slate-300'}">${e.friendly_code || e.code} · ${e.turbine_id ? 'T-'+e.turbine_id : ''}</div>
           <div class="text-xs text-slate-300 mt-0.5 line-clamp-2">${e.message}</div>
           <div class="text-xs text-slate-600 mt-1">${new Date(e.ts).toLocaleString()}</div>
         </div>

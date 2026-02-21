@@ -451,7 +451,7 @@ function renderEvents(events) {
         <span class="text-sm mt-0.5">${isAI(e) ? '🤖' : (sevIcon[e.severity]||'⚪')}</span>
         <div class="flex-1 min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="text-xs font-semibold ${sevCol[e.severity]||'text-slate-300'}">${e.code}</span>
+            <span class="text-xs font-semibold ${sevCol[e.severity]||'text-slate-300'}">${e.friendly_code || e.code}</span>
             ${statusBadge}
           </div>
           <div class="text-xs text-slate-300 mt-1">${e.message}</div>
