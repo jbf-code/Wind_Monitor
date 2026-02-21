@@ -63,13 +63,23 @@
 
 <!-- ── Fleet Power Chart + Recent Events ─────────────────────────────── -->
 <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-  <!-- Fleet Power 48h -->
+  <!-- Fleet Power Chart -->
   <div class="lg:col-span-2 card p-4">
     <div class="flex items-center justify-between mb-3">
-      <h2 class="font-semibold text-white text-sm">
+      <h2 class="font-semibold text-white text-sm" id="fleetPowerTitle">
         {% if lang=='da' %}Samlet flådeproduktion · Seneste 48 timer{% else %}Total Fleet Output · Last 48 hours{% endif %}
       </h2>
-      <span class="text-xs text-slate-500" id="fleetPowerUpdated"></span>
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-slate-500" id="fleetPowerUpdated"></span>
+        <button onclick="loadFleetPower('48h')" id="btn-48h"
+          class="power-range text-xs px-2 py-0.5 rounded bg-sky-700 text-white">
+          48h
+        </button>
+        <button onclick="loadFleetPower('7d')" id="btn-7d"
+          class="power-range text-xs px-2 py-0.5 rounded text-slate-400 hover:text-white">
+          7d
+        </button>
+      </div>
     </div>
     <div style="height:200px;">
       <canvas id="fleetPowerChart"></canvas>
@@ -263,10 +273,35 @@ function renderMap(data) {
 
 // ── Fleet Power Chart ────────────────────────────────────────────────────────
 let powerChart;
-async function loadFleetPower() {
-  const r = await fetch('/api/fleet/power');
+let currentPowerRange = '48h';
+
+async function loadFleetPower(range) {
+  range = range || currentPowerRange;
+  currentPowerRange = range;
+
+  // Update toggle buttons
+  document.querySelectorAll('.power-range').forEach(b => {
+    b.className = 'power-range text-xs px-2 py-0.5 rounded text-slate-400 hover:text-white';
+  });
+  const activeBtn = document.getElementById('btn-' + range);
+  if (activeBtn) activeBtn.className = 'power-range text-xs px-2 py-0.5 rounded bg-sky-700 text-white';
+
+  // Update chart title
+  const titleEl = document.getElementById('fleetPowerTitle');
+  if (titleEl) {
+    titleEl.textContent = range === '7d'
+      ? (LANG==='da' ? 'Samlet flådeproduktion · Seneste 7 dage' : 'Total Fleet Output · Last 7 days')
+      : (LANG==='da' ? 'Samlet flådeproduktion · Seneste 48 timer' : 'Total Fleet Output · Last 48 hours');
+  }
+
+  const r = await fetch(`/api/fleet/power?range=${range}`);
   const d = await r.json();
   if (!d.length) return;
+
+  const timeUnit = range === '7d' ? 'day' : 'hour';
+  const displayFormats = range === '7d'
+    ? { day: 'EEE d MMM', hour: 'HH:mm' }
+    : { hour: 'HH:mm', day: 'd MMM' };
 
   const ctx = document.getElementById('fleetPowerChart').getContext('2d');
   if (powerChart) powerChart.destroy();
@@ -303,7 +338,12 @@ async function loadFleetPower() {
       interaction: { mode:'index', intersect:false },
       plugins: { legend: { labels:{ color:'#94a3b8', font:{size:11} }, position:'bottom' } },
       scales: {
-        x: { type:'time', time:{unit:'hour', displayFormats:{hour:'HH:mm'}}, grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b', maxTicksLimit:12, font:{size:10}} },
+        x: {
+          type: 'time',
+          time: { unit: timeUnit, displayFormats },
+          grid: { color:'rgba(51,65,85,0.5)' },
+          ticks: { color:'#64748b', maxTicksLimit: range==='7d' ? 7 : 12, font:{size:10} }
+        },
         y:  { grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b', font:{size:10}}, position:'left'  },
         y2: { grid:{display:false}, ticks:{color:'#34d399', font:{size:10}}, position:'right' },
       }
@@ -340,6 +380,6 @@ loadEvents();
 loadFleetPower();
 
 // Auto-refresh every 60 seconds
-setInterval(() => { loadFleet(); loadEvents(); loadFleetPower(); }, 60000);
+setInterval(() => { loadFleet(); loadEvents(); loadFleetPower(currentPowerRange); }, 60000);
 </script>
 {% endblock %}

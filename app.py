@@ -228,10 +228,16 @@ def api_chart(turbine_id):
 @app.route('/api/fleet/power')
 @login_required
 def api_fleet_power():
-    """Aggregated total fleet power for the last 24h (hourly buckets)."""
+    """Aggregated total fleet power. ?range=48h (default) or 7d."""
+    range_param = request.args.get('range', '48h')
     now = datetime.utcnow()
-    since = now - timedelta(hours=48)
-    from sqlalchemy import text
+    if range_param == '7d':
+        since = now - timedelta(days=7)
+        resolution_filter = 'hour'   # use pre-aggregated hourly rows
+    else:
+        since = now - timedelta(hours=48)
+        resolution_filter = 'min'    # use minute rows, group into hours
+
     is_sqlite = 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
     if is_sqlite:
         hour_expr = func.strftime('%Y-%m-%dT%H:00:00', SensorReading.timestamp).label('hour')
@@ -245,7 +251,7 @@ def api_fleet_power():
             )
             .filter(
                 SensorReading.timestamp >= since,
-                SensorReading.resolution == 'min',
+                SensorReading.resolution == resolution_filter,
             )
             .group_by('hour')
             .order_by('hour')
