@@ -1,0 +1,453 @@
+{% extends "base.html" %}
+{% block title %}Wind Monitor · {{ turbine.name }}{% endblock %}
+
+{% block content %}
+<!-- ── Back + Header ──────────────────────────────────────────────────── -->
+<div class="flex flex-wrap items-center gap-3 mb-4">
+  <a href="{{ url_for('dashboard') }}" class="flex items-center gap-1 text-slate-400 hover:text-white text-sm transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+    {% if lang=='da' %}Tilbage{% else %}Back{% endif %}
+  </a>
+  <div class="flex-1">
+    <div class="flex flex-wrap items-center gap-3">
+      <h1 class="text-xl font-bold text-white" id="turbineName">{{ turbine.name }}</h1>
+      <span id="statusBadgeEl" class="px-2.5 py-0.5 rounded-full text-xs font-semibold badge-{{ turbine.status }}">{{ turbine.status }}</span>
+    </div>
+    <div class="text-sm text-slate-400 mt-0.5">{{ turbine.make }} {{ turbine.model }} · {{ turbine.serial_number }}</div>
+  </div>
+  <!-- AI Analyze button (stub) -->
+  <button onclick="runAiAnalysis()" class="flex items-center gap-2 px-4 py-2 bg-violet-700 hover:bg-violet-600 text-white text-sm rounded-lg transition-colors">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H4a2 2 0 01-2-2V5a2 2 0 012-2h16a2 2 0 012 2v10a2 2 0 01-2 2h-1"/></svg>
+    {% if lang=='da' %}AI Analyse{% else %}AI Analysis{% endif %}
+  </button>
+</div>
+
+<!-- ── Info Row ───────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3 mb-4 text-sm">
+  <div class="card p-3">
+    <div class="text-xs text-slate-500 mb-1">{% if lang=='da' %}Mærkeeffekt{% else %}Rated Power{% endif %}</div>
+    <div class="font-semibold text-sky-300">{{ turbine.rated_power_kw|int }} kW</div>
+  </div>
+  <div class="card p-3">
+    <div class="text-xs text-slate-500 mb-1">{% if lang=='da' %}Navhøjde{% else %}Hub Height{% endif %}</div>
+    <div class="font-semibold text-white">{{ turbine.hub_height_m|int }} m</div>
+  </div>
+  <div class="card p-3">
+    <div class="text-xs text-slate-500 mb-1">{% if lang=='da' %}Rotordiameter{% else %}Rotor Diameter{% endif %}</div>
+    <div class="font-semibold text-white">{{ turbine.rotor_diameter_m|int }} m</div>
+  </div>
+  <div class="card p-3">
+    <div class="text-xs text-slate-500 mb-1">{% if lang=='da' %}Byggested{% else %}Build Date{% endif %}</div>
+    <div class="font-semibold text-white">{{ turbine.build_date }}</div>
+  </div>
+  <div class="card p-3">
+    <div class="text-xs text-slate-500 mb-1">{% if lang=='da' %}Seneste service{% else %}Last Service{% endif %}</div>
+    <div class="font-semibold text-white">{{ turbine.last_service_date }}</div>
+  </div>
+  <div class="card p-3">
+    <div class="text-xs text-slate-500 mb-1">GPS</div>
+    <div class="font-semibold text-white text-xs">{{ "%.4f"|format(turbine.latitude) }}, {{ "%.4f"|format(turbine.longitude) }}</div>
+  </div>
+</div>
+
+<!-- ── Live Gauges ────────────────────────────────────────────────────── -->
+<div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-4">
+  <!-- Power gauge -->
+  <div class="sm:col-span-2 card p-4 flex flex-col items-center gap-2">
+    <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Effekt{% else %}Power Output{% endif %}</div>
+    <canvas id="gaugePower" width="120" height="80"></canvas>
+    <div id="valPower" class="text-xl font-bold text-sky-400">—</div>
+    <div class="text-xs text-slate-500">kW / {{ turbine.rated_power_kw|int }} kW</div>
+  </div>
+  <!-- Wind speed -->
+  <div class="card p-4 flex flex-col items-center gap-2">
+    <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Vind{% else %}Wind{% endif %}</div>
+    <canvas id="gaugeWind" width="80" height="60"></canvas>
+    <div id="valWind" class="text-lg font-bold text-emerald-400">—</div>
+    <div class="text-xs text-slate-500">m/s</div>
+  </div>
+  <!-- RPM -->
+  <div class="card p-4 flex flex-col items-center gap-2">
+    <div class="text-xs text-slate-400 uppercase tracking-wide">RPM</div>
+    <canvas id="gaugeRpm" width="80" height="60"></canvas>
+    <div id="valRpm" class="text-lg font-bold text-purple-400">—</div>
+    <div class="text-xs text-slate-500">r/min</div>
+  </div>
+  <!-- Bearing Temp -->
+  <div class="card p-4 flex flex-col items-center gap-2">
+    <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Lejetemperatur{% else %}Bearing Temp{% endif %}</div>
+    <canvas id="gaugeBearingTemp" width="80" height="60"></canvas>
+    <div id="valBearingTemp" class="text-lg font-bold text-orange-400">—</div>
+    <div class="text-xs text-slate-500">°C</div>
+  </div>
+  <!-- Gearbox Temp -->
+  <div class="card p-4 flex flex-col items-center gap-2">
+    <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Gearkasse{% else %}Gearbox{% endif %}</div>
+    <canvas id="gaugeGearboxTemp" width="80" height="60"></canvas>
+    <div id="valGearboxTemp" class="text-lg font-bold text-orange-300">—</div>
+    <div class="text-xs text-slate-500">°C</div>
+  </div>
+  <!-- Vibration X -->
+  <div class="card p-4 flex flex-col items-center gap-2">
+    <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Vibration X{% else %}Vibration X{% endif %}</div>
+    <canvas id="gaugeVibX" width="80" height="60"></canvas>
+    <div id="valVibX" class="text-lg font-bold text-red-400">—</div>
+    <div class="text-xs text-slate-500">g</div>
+  </div>
+  <!-- Acoustic -->
+  <div class="card p-4 flex flex-col items-center gap-2">
+    <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Lydniveau{% else %}Acoustic{% endif %}</div>
+    <canvas id="gaugeAcoustic" width="80" height="60"></canvas>
+    <div id="valAcoustic" class="text-lg font-bold text-teal-400">—</div>
+    <div class="text-xs text-slate-500">dB</div>
+  </div>
+</div>
+
+<!-- ── Time-Series Charts ─────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+  <!-- Power + Wind -->
+  <div class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-white">{% if lang=='da' %}Effekt & Vindhastighed{% else %}Power Output & Wind Speed{% endif %}</h2>
+      <div class="flex gap-1 text-xs">
+        <button onclick="setRange('24h')" id="range-24h" class="range-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+        <button onclick="setRange('7d')"  id="range-7d"  class="range-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+        <button onclick="setRange('21d')" id="range-21d" class="range-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+      </div>
+    </div>
+    <div style="height:200px;"><canvas id="chartPowerWind"></canvas></div>
+  </div>
+
+  <!-- Temperature -->
+  <div class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-white">{% if lang=='da' %}Temperaturer{% else %}Temperatures{% endif %}</h2>
+      <div class="flex gap-1 text-xs">
+        <button onclick="setRange2('24h')" id="range2-24h" class="range2-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+        <button onclick="setRange2('7d')"  id="range2-7d"  class="range2-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+        <button onclick="setRange2('21d')" id="range2-21d" class="range2-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+      </div>
+    </div>
+    <div style="height:200px;"><canvas id="chartTemps"></canvas></div>
+  </div>
+
+  <!-- Vibration -->
+  <div class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-white">{% if lang=='da' %}Vibration (gearkasse){% else %}Vibration (Gearbox){% endif %}</h2>
+    </div>
+    <div style="height:180px;"><canvas id="chartVibration"></canvas></div>
+  </div>
+
+  <!-- RPM + Pitch -->
+  <div class="card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-white">RPM & {% if lang=='da' %}Pitch{% else %}Pitch Angle{% endif %}</h2>
+    </div>
+    <div style="height:180px;"><canvas id="chartRpmPitch"></canvas></div>
+  </div>
+</div>
+
+<!-- ── Map + Events ───────────────────────────────────────────────────── -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+  <!-- Mini map -->
+  <div class="card overflow-hidden" style="height:280px;">
+    <div class="px-4 pt-3 pb-2 border-b border-slate-700 text-sm font-semibold text-white">
+      {% if lang=='da' %}Møllens placering{% else %}Turbine Location{% endif %}
+    </div>
+    <div id="turbineMap" style="height:240px;"></div>
+  </div>
+
+  <!-- Event log -->
+  <div class="card overflow-hidden" style="height:280px;">
+    <div class="px-4 pt-3 pb-2 border-b border-slate-700 text-sm font-semibold text-white flex items-center justify-between">
+      {% if lang=='da' %}Hændelseslog{% else %}Event Log{% endif %}
+      <span id="eventCount" class="text-xs text-slate-400"></span>
+    </div>
+    <div id="eventLog" class="overflow-y-auto" style="max-height:236px;"></div>
+  </div>
+</div>
+
+<!-- ── AI Analysis Modal ──────────────────────────────────────────────── -->
+<div id="aiModal" class="hidden fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+  <div class="card p-6 max-w-lg w-full">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-bold text-white text-lg">🤖 {% if lang=='da' %}AI Diagnose{% else %}AI Diagnostic{% endif %}</h2>
+      <button onclick="document.getElementById('aiModal').classList.add('hidden')" class="text-slate-400 hover:text-white text-xl">✕</button>
+    </div>
+    <div id="aiResult" class="text-sm text-slate-300 leading-relaxed bg-slate-900/50 rounded-lg p-4 min-h-24">
+      {% if lang=='da' %}Analyserer sensordata...{% else %}Analyzing sensor data...{% endif %}
+    </div>
+    <p class="text-xs text-slate-500 mt-3">
+      {% if lang=='da' %}AI-analyse drevet af Claude · Sæt ANTHROPIC_API_KEY for at aktivere{% else %}AI analysis powered by Claude · Set ANTHROPIC_API_KEY to enable{% endif %}
+    </p>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TURBINE_ID = {{ turbine.id }};
+const RATED_KW   = {{ turbine.rated_power_kw }};
+const LANG       = "{{ lang }}";
+
+// ── Gauge Drawing (Canvas) ────────────────────────────────────────────────────
+function drawGauge(canvasId, value, max, color, thresholds) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h * 0.85;
+  const r  = Math.min(w, h) * 0.7;
+  const startAngle = Math.PI, endAngle = 2 * Math.PI;
+  const pct = Math.min(1, Math.max(0, value / max));
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startAngle, endAngle);
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = '#334155';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Determine color from thresholds
+  let arcColor = color;
+  if (thresholds) {
+    if (value >= thresholds.critical) arcColor = '#ef4444';
+    else if (value >= thresholds.warning) arcColor = '#f59e0b';
+  }
+
+  // Value arc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, startAngle, startAngle + pct * Math.PI);
+  ctx.lineWidth = 10;
+  ctx.strokeStyle = arcColor;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Needle
+  const angle = Math.PI + pct * Math.PI;
+  const nx = cx + (r * 0.75) * Math.cos(angle);
+  const ny = cy + (r * 0.75) * Math.sin(angle);
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(nx, ny);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fill();
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+const CHART_OPTS = {
+  responsive: true, maintainAspectRatio: false,
+  animation: { duration: 300 },
+  interaction: { mode: 'index', intersect: false },
+  plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 12 }, position: 'bottom' } },
+  scales: {
+    x: { type: 'time', time: { displayFormats: { minute: 'HH:mm', hour: 'HH:mm', day: 'MMM d' } }, grid: { color: 'rgba(51,65,85,0.5)' }, ticks: { color: '#64748b', maxTicksLimit: 8, font: { size: 10 } } },
+    y:  { grid: { color: 'rgba(51,65,85,0.5)' }, ticks: { color: '#64748b', font: { size: 10 } } },
+  }
+};
+
+let chartPW, chartT, chartV, chartRP;
+let currentRange = '24h', currentRange2 = '24h';
+
+async function fetchMetric(metric, range) {
+  const r = await fetch(`/api/turbine/${TURBINE_ID}/chart?metric=${metric}&range=${range}`);
+  return (await r.json()).data;
+}
+
+async function loadPowerWindChart(range) {
+  const [pw, wd] = await Promise.all([fetchMetric('power_output_kw', range), fetchMetric('wind_speed_ms', range)]);
+  const ctx = document.getElementById('chartPowerWind').getContext('2d');
+  if (chartPW) chartPW.destroy();
+  chartPW = new Chart(ctx, {
+    data: {
+      datasets: [
+        { type:'bar', label: LANG==='da'?'Effekt (kW)':'Power (kW)', data: pw.map(d=>({x:new Date(d.t),y:d.v})), backgroundColor:'rgba(14,165,233,0.35)', borderColor:'rgba(14,165,233,0.8)', borderWidth:1, borderRadius:1, yAxisID:'y' },
+        { type:'line', label: LANG==='da'?'Vind (m/s)':'Wind (m/s)', data: wd.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'rgba(52,211,153,0.8)', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y2' },
+      ]
+    },
+    options: { ...CHART_OPTS, scales: { ...CHART_OPTS.scales, y:{...CHART_OPTS.scales.y,position:'left'}, y2:{grid:{display:false},ticks:{color:'#34d399',font:{size:10}},position:'right'} } }
+  });
+}
+
+async function loadTempChart(range) {
+  const [bt, gt, gen, ot] = await Promise.all([
+    fetchMetric('bearing_temp_c', range),
+    fetchMetric('gearbox_temp_c', range),
+    fetchMetric('generator_temp_c', range),
+    fetchMetric('oil_temp_c', range),
+  ]);
+  const ctx = document.getElementById('chartTemps').getContext('2d');
+  if (chartT) chartT.destroy();
+  chartT = new Chart(ctx, {
+    type:'line',
+    data: {
+      datasets: [
+        { label: LANG==='da'?'Leje':'Bearing', data: bt.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#f97316', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label: LANG==='da'?'Gearkasse':'Gearbox', data: gt.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#fb923c', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label: LANG==='da'?'Generator':'Generator', data: gen.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#fbbf24', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label: LANG==='da'?'Olie':'Oil', data: ot.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#a78bfa', pointRadius:0, borderWidth:1.5, tension:0.4 },
+      ]
+    },
+    options: CHART_OPTS
+  });
+}
+
+async function loadVibrationChart() {
+  const [vx, vy, vz] = await Promise.all([
+    fetchMetric('vibration_gearbox_x', currentRange),
+    fetchMetric('vibration_gearbox_y', currentRange),
+    fetchMetric('vibration_gearbox_z', currentRange),
+  ]);
+  const ctx = document.getElementById('chartVibration').getContext('2d');
+  if (chartV) chartV.destroy();
+  chartV = new Chart(ctx, {
+    type:'line',
+    data: {
+      datasets: [
+        { label:'X', data: vx.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#ef4444', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label:'Y', data: vy.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#a855f7', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label:'Z', data: vz.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#3b82f6', pointRadius:0, borderWidth:1.5, tension:0.4 },
+      ]
+    },
+    options: { ...CHART_OPTS, plugins: { ...CHART_OPTS.plugins, annotation: {
+      annotations: { threshold: { type:'line', yMin:0.5, yMax:0.5, borderColor:'rgba(239,68,68,0.5)', borderWidth:1, borderDash:[6,4], label:{content:LANG==='da'?'Grænse':'Limit',enabled:true,color:'#ef4444',font:{size:9}} } }
+    }}}
+  });
+}
+
+async function loadRpmPitchChart() {
+  const [rpm, pitch] = await Promise.all([
+    fetchMetric('rotor_rpm', currentRange),
+    fetchMetric('pitch_angle_deg', currentRange),
+  ]);
+  const ctx = document.getElementById('chartRpmPitch').getContext('2d');
+  if (chartRP) chartRP.destroy();
+  chartRP = new Chart(ctx, {
+    data: {
+      datasets: [
+        { type:'line', label:'RPM', data: rpm.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#a855f7', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y' },
+        { type:'line', label: LANG==='da'?'Pitch (°)':'Pitch (°)', data: pitch.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#06b6d4', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y2' },
+      ]
+    },
+    options: { ...CHART_OPTS, scales: { ...CHART_OPTS.scales, y:{...CHART_OPTS.scales.y,position:'left'}, y2:{grid:{display:false},ticks:{color:'#06b6d4',font:{size:10}},position:'right'} } }
+  });
+}
+
+function setRange(r) {
+  currentRange = r;
+  document.querySelectorAll('.range-btn').forEach(b=>b.className='range-btn px-2 py-0.5 rounded text-slate-400 hover:text-white');
+  document.getElementById('range-'+r).className='range-btn px-2 py-0.5 rounded bg-sky-700 text-white';
+  loadPowerWindChart(r);
+  loadVibrationChart();
+  loadRpmPitchChart();
+}
+function setRange2(r) {
+  currentRange2 = r;
+  document.querySelectorAll('.range2-btn').forEach(b=>b.className='range2-btn px-2 py-0.5 rounded text-slate-400 hover:text-white');
+  document.getElementById('range2-'+r).className='range2-btn px-2 py-0.5 rounded bg-sky-700 text-white';
+  loadTempChart(r);
+}
+
+// ── Live Data & Gauges ────────────────────────────────────────────────────────
+async function loadLiveData() {
+  const r = await fetch(`/api/turbine/${TURBINE_ID}`);
+  const d = await r.json();
+  if (!d.latest) return;
+  const lt = d.latest;
+
+  document.getElementById('valPower').textContent     = lt.power_kw != null ? Math.round(lt.power_kw) : '—';
+  document.getElementById('valWind').textContent      = lt.wind_ms  != null ? lt.wind_ms.toFixed(1) : '—';
+  document.getElementById('valRpm').textContent       = lt.rpm != null ? lt.rpm.toFixed(1) : '—';
+  document.getElementById('valBearingTemp').textContent  = lt.bearing_temp != null ? lt.bearing_temp.toFixed(0) : '—';
+  document.getElementById('valGearboxTemp').textContent  = lt.gearbox_temp != null ? lt.gearbox_temp.toFixed(0) : '—';
+  document.getElementById('valVibX').textContent      = lt.vib_x != null ? lt.vib_x.toFixed(3) : '—';
+  document.getElementById('valAcoustic').textContent  = lt.acoustic_db != null ? lt.acoustic_db.toFixed(0) : '—';
+
+  drawGauge('gaugePower',       lt.power_kw || 0, RATED_KW, '#0ea5e9',  null);
+  drawGauge('gaugeWind',        lt.wind_ms || 0,  25,       '#34d399',  null);
+  drawGauge('gaugeRpm',         lt.rpm || 0,      20,       '#a855f7',  null);
+  drawGauge('gaugeBearingTemp', lt.bearing_temp||0, 100,    '#f97316',  {warning:70,  critical:85});
+  drawGauge('gaugeGearboxTemp', lt.gearbox_temp||0, 100,    '#fb923c',  {warning:75,  critical:90});
+  drawGauge('gaugeVibX',        lt.vib_x||0,      1.0,      '#ef4444',  {warning:0.3, critical:0.5});
+  drawGauge('gaugeAcoustic',    lt.acoustic_db||0, 100,     '#2dd4bf',  null);
+
+  // Render events
+  renderEvents(d.events);
+  document.getElementById('eventCount').textContent = `${d.events.filter(e=>!e.resolved).length} ${LANG==='da'?'åbne':'open'}`;
+}
+
+function renderEvents(events) {
+  const el = document.getElementById('eventLog');
+  if (!events.length) { el.innerHTML = `<div class="px-4 py-4 text-slate-500 text-sm">${LANG==='da'?'Ingen hændelser':'No events'}</div>`; return; }
+  const sevCol  = { critical:'text-red-400', fault:'text-red-300', warning:'text-amber-300', info:'text-sky-300' };
+  const sevIcon = { critical:'🔴', fault:'🔴', warning:'🟡', info:'🔵' };
+  el.innerHTML = events.map(e => {
+    const resolvedBadge = e.resolved
+      ? `<span class="text-xs px-1.5 py-0.5 rounded bg-green-900/40 text-green-400">${LANG==='da'?'Løst':'Resolved'}</span>`
+      : `<span class="text-xs px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-400">${LANG==='da'?'Åben':'Open'}</span>`;
+    return `<div class="px-4 py-3 border-b border-slate-800 hover:bg-slate-700/30 transition-colors">
+      <div class="flex items-start gap-2">
+        <span class="text-sm mt-0.5">${sevIcon[e.severity]||'⚪'}</span>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2 flex-wrap">
+            <span class="text-xs font-semibold ${sevCol[e.severity]||'text-slate-300'}">${e.code}</span>
+            ${resolvedBadge}
+          </div>
+          <div class="text-xs text-slate-300 mt-1">${e.message}</div>
+          ${e.ai_analysis ? `<details class="mt-1.5"><summary class="text-xs text-violet-400 cursor-pointer">🤖 AI Analysis</summary><div class="text-xs text-slate-400 mt-1 p-2 bg-slate-900/50 rounded leading-relaxed">${e.ai_analysis}</div></details>` : ''}
+          <div class="text-xs text-slate-600 mt-1">${new Date(e.ts).toLocaleString()}</div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Mini Map ──────────────────────────────────────────────────────────────────
+function initTurbineMap(lat, lng) {
+  const m = L.map('turbineMap', { zoomControl: true, scrollWheelZoom: false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap', maxZoom: 18
+  }).addTo(m);
+  const icon = L.divIcon({
+    html: `<div style="background:#0ea5e9;width:18px;height:18px;border-radius:50%;border:3px solid white;box-shadow:0 0 6px rgba(14,165,233,0.8)"></div>`,
+    iconSize:[18,18], iconAnchor:[9,9], className:''
+  });
+  L.marker([lat, lng], { icon }).addTo(m);
+  m.setView([lat, lng], 13);
+}
+
+// ── AI Stub ───────────────────────────────────────────────────────────────────
+async function runAiAnalysis() {
+  document.getElementById('aiModal').classList.remove('hidden');
+  document.getElementById('aiResult').textContent = LANG==='da' ? 'Analyserer sensordata...' : 'Analyzing sensor data...';
+  const r = await fetch(`/api/ai/analyze/${TURBINE_ID}`, { method:'POST' });
+  const d = await r.json();
+  if (d.status === 'stub') {
+    document.getElementById('aiResult').textContent = LANG==='da'
+      ? `AI-integration er klar til brug. Tilføj din ANTHROPIC_API_KEY i miljøvariablerne for at aktivere Claude-analyser af sensordata i realtid.\n\nDette endpoint (/api/ai/analyze/${TURBINE_ID}) er forberedt til at sende de seneste ~1.000 målepunkter samt aktive advarsler til Claude til diagnosticering og P-F kurvevurdering.`
+      : `AI integration is ready. Add your ANTHROPIC_API_KEY environment variable to enable real-time Claude diagnostic analysis of sensor data.\n\nThis endpoint (/api/ai/analyze/${TURBINE_ID}) is prepared to send the latest ~1,000 data points and active alerts to Claude for diagnostics and P-F curve assessment.`;
+  } else {
+    document.getElementById('aiResult').textContent = d.analysis || JSON.stringify(d, null, 2);
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadLiveData();
+loadPowerWindChart('24h');
+loadTempChart('24h');
+loadVibrationChart();
+loadRpmPitchChart();
+initTurbineMap({{ turbine.latitude }}, {{ turbine.longitude }});
+
+setInterval(loadLiveData, 60000);
+</script>
+{% endblock %}

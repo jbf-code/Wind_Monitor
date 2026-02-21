@@ -1,0 +1,344 @@
+{% extends "base.html" %}
+{% block title %}Wind Monitor · {% if lang=='da' %}Oversigt{% else %}Dashboard{% endif %}{% endblock %}
+
+{% block content %}
+<!-- ── KPI Summary Strip ──────────────────────────────────────────────── -->
+<div id="kpiStrip" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+  <div class="card p-4 flex flex-col gap-1">
+    <span class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Total effekt{% else %}Total Output{% endif %}</span>
+    <span id="kpiPower" class="text-2xl font-bold text-sky-400">—</span>
+    <span class="text-xs text-slate-500">MW</span>
+  </div>
+  <div class="card p-4 flex flex-col gap-1">
+    <span class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Gns. vindhastighed{% else %}Avg Wind Speed{% endif %}</span>
+    <span id="kpiWind" class="text-2xl font-bold text-emerald-400">—</span>
+    <span class="text-xs text-slate-500">m/s</span>
+  </div>
+  <div class="card p-4 flex flex-col gap-1">
+    <span class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Operationelle{% else %}Operational{% endif %}</span>
+    <span id="kpiOp" class="text-2xl font-bold text-green-400">—</span>
+    <span class="text-xs text-slate-500">/ 16 {% if lang=='da' %}møller{% else %}turbines{% endif %}</span>
+  </div>
+  <div class="card p-4 flex flex-col gap-1">
+    <span class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Aktive advarsler{% else %}Active Alerts{% endif %}</span>
+    <span id="kpiAlerts" class="text-2xl font-bold text-amber-400">—</span>
+    <span class="text-xs text-slate-500">{% if lang=='da' %}hændelser{% else %}events{% endif %}</span>
+  </div>
+</div>
+
+<!-- ── Main Grid: Map + Fleet Cards ──────────────────────────────────── -->
+<div class="grid grid-cols-1 lg:grid-cols-5 gap-4 mb-4">
+
+  <!-- Map (3 cols) -->
+  <div class="lg:col-span-3 card p-0 overflow-hidden" style="height:460px;">
+    <div class="px-4 pt-3 pb-2 flex items-center justify-between border-b border-slate-700">
+      <h2 class="font-semibold text-white text-sm">
+        {% if lang=='da' %}Placering af møllepark · Vestjylland{% else %}Farm Location · Western Jutland{% endif %}
+      </h2>
+      <span class="text-xs text-slate-500">OpenStreetMap</span>
+    </div>
+    <div id="map" style="height:412px;"></div>
+  </div>
+
+  <!-- Fleet Status (2 cols) -->
+  <div class="lg:col-span-2 card flex flex-col overflow-hidden" style="height:460px;">
+    <div class="px-4 pt-3 pb-2 border-b border-slate-700 flex items-center justify-between">
+      <h2 class="font-semibold text-white text-sm">
+        {% if lang=='da' %}Møllestatus{% else %}Turbine Status{% endif %}
+      </h2>
+      <div class="flex gap-2 text-xs">
+        <button onclick="filterFleet('all')"      id="btn-all"     class="fleet-filter px-2 py-0.5 rounded bg-sky-700 text-white">{% if lang=='da' %}Alle{% else %}All{% endif %}</button>
+        <button onclick="filterFleet('warning')"  id="btn-warning" class="fleet-filter px-2 py-0.5 rounded text-slate-400 hover:text-white">⚠</button>
+        <button onclick="filterFleet('fault')"    id="btn-fault"   class="fleet-filter px-2 py-0.5 rounded text-slate-400 hover:text-white">✗</button>
+      </div>
+    </div>
+    <div id="fleetList" class="flex-1 overflow-y-auto divide-y divide-slate-800">
+      <!-- populated by JS -->
+      <div class="flex items-center justify-center h-full text-slate-500 text-sm">
+        {% if lang=='da' %}Indlæser data...{% else %}Loading data...{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Fleet Power Chart + Recent Events ─────────────────────────────── -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
+  <!-- Fleet Power 48h -->
+  <div class="lg:col-span-2 card p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-semibold text-white text-sm">
+        {% if lang=='da' %}Samlet flådeproduktion · Seneste 48 timer{% else %}Total Fleet Output · Last 48 hours{% endif %}
+      </h2>
+      <span class="text-xs text-slate-500" id="fleetPowerUpdated"></span>
+    </div>
+    <div style="height:200px;">
+      <canvas id="fleetPowerChart"></canvas>
+    </div>
+  </div>
+
+  <!-- Recent Events -->
+  <div class="card p-0 overflow-hidden">
+    <div class="px-4 pt-3 pb-2 border-b border-slate-700 flex items-center justify-between">
+      <h2 class="font-semibold text-white text-sm">
+        {% if lang=='da' %}Seneste hændelser{% else %}Recent Events{% endif %}
+      </h2>
+      <span class="text-xs text-sky-400 cursor-pointer" onclick="loadEvents()">↺</span>
+    </div>
+    <div id="eventsList" class="overflow-y-auto" style="max-height:240px;">
+      <div class="flex items-center justify-center h-20 text-slate-500 text-sm">
+        {% if lang=='da' %}Indlæser...{% else %}Loading...{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 16 Turbine Mini-Cards Grid ────────────────────────────────────── -->
+<div class="mb-2">
+  <h2 class="font-semibold text-slate-300 text-sm mb-3">
+    {% if lang=='da' %}Alle 16 møller — detaljer{% else %}All 16 Turbines — Details{% endif %}
+  </h2>
+  <div id="turbineGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-3">
+    <!-- populated by JS -->
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const LANG = "{{ lang }}";
+const labels = {
+  en: {
+    operational:'Operational', warning:'Warning', fault:'Fault', offline:'Offline',
+    wind:'Wind', power:'Power', rpm:'RPM', temp:'Temp', details:'Details',
+    na: 'N/A', noData: 'No recent data',
+  },
+  da: {
+    operational:'Operationel', warning:'Advarsel', fault:'Fejl', offline:'Offline',
+    wind:'Vind', power:'Effekt', rpm:'Omdrejninger', temp:'Temp.', details:'Detaljer',
+    na: 'N/A', noData: 'Ingen nylige data',
+  }
+};
+const L = labels[LANG] || labels.en;
+const STATUS_ICON = { operational:'🟢', warning:'🟡', fault:'🔴', offline:'⚫' };
+
+// ── Load Fleet Data ──────────────────────────────────────────────────────────
+let fleetData = [];
+let mapInstance, markers = {};
+
+async function loadFleet() {
+  const r = await fetch('/api/fleet');
+  fleetData = await r.json();
+  renderKPIs();
+  renderFleetList(fleetData);
+  renderTurbineGrid(fleetData);
+  renderMap(fleetData);
+}
+
+function renderKPIs() {
+  const op  = fleetData.filter(t => t.status === 'operational');
+  const totalKW = fleetData.reduce((s, t) => s + (t.latest?.power_kw || 0), 0);
+  const avgWind = fleetData.reduce((s, t) => s + (t.latest?.wind_ms || 0), 0) / fleetData.length;
+  const alerts  = fleetData.reduce((s, t) => s + t.open_events, 0);
+
+  document.getElementById('kpiPower').textContent   = (totalKW / 1000).toFixed(1);
+  document.getElementById('kpiWind').textContent    = avgWind.toFixed(1);
+  document.getElementById('kpiOp').textContent      = op.length;
+  document.getElementById('kpiAlerts').textContent  = alerts;
+}
+
+// ── Fleet List (sidebar) ─────────────────────────────────────────────────────
+let currentFilter = 'all';
+function filterFleet(f) {
+  currentFilter = f;
+  document.querySelectorAll('.fleet-filter').forEach(b => b.className = 'fleet-filter px-2 py-0.5 rounded text-slate-400 hover:text-white');
+  document.getElementById('btn-' + f).className = 'fleet-filter px-2 py-0.5 rounded bg-sky-700 text-white';
+  renderFleetList(fleetData);
+}
+
+function renderFleetList(data) {
+  const filtered = currentFilter === 'all' ? data : data.filter(t => t.status === currentFilter || (currentFilter === 'warning' && ['warning','fault','offline'].includes(t.status)));
+  const el = document.getElementById('fleetList');
+  if (!filtered.length) { el.innerHTML = `<div class="flex items-center justify-center h-20 text-slate-500 text-sm">${LANG==='da'?'Ingen møller':'No turbines'}</div>`; return; }
+  el.innerHTML = filtered.map(t => {
+    const pw  = t.latest?.power_kw != null ? (t.latest.power_kw/1000).toFixed(2) + ' MW' : L.na;
+    const wd  = t.latest?.wind_ms  != null ? t.latest.wind_ms.toFixed(1)  + ' m/s' : L.na;
+    return `<a href="/turbine/${t.id}" class="flex items-center gap-3 px-4 py-3 hover:bg-slate-700/50 transition-colors cursor-pointer">
+      <div class="text-lg">${STATUS_ICON[t.status] || '⚫'}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-white text-sm">${t.name}</span>
+          ${t.open_events > 0 ? `<span class="text-xs bg-red-900/60 text-red-300 px-1.5 py-0.5 rounded-full">${t.open_events}</span>` : ''}
+        </div>
+        <div class="text-xs text-slate-400">${t.make} · ${t.model}</div>
+      </div>
+      <div class="text-right text-xs text-slate-400">
+        <div>${pw}</div>
+        <div>${wd}</div>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+// ── 16 Turbine Mini-Cards ────────────────────────────────────────────────────
+function renderTurbineGrid(data) {
+  document.getElementById('turbineGrid').innerHTML = data.map(t => {
+    const pw = t.latest?.power_kw != null ? (t.latest.power_kw/1000).toFixed(2) : '—';
+    const wd = t.latest?.wind_ms  != null ? t.latest.wind_ms.toFixed(1) : '—';
+    const rp = t.latest?.rpm      != null ? t.latest.rpm.toFixed(1) : '—';
+    const tp = t.latest?.bearing_temp != null ? t.latest.bearing_temp.toFixed(0) : '—';
+    const borderCol = {operational:'border-green-800', warning:'border-amber-700', fault:'border-red-800', offline:'border-slate-700'}[t.status] || 'border-slate-700';
+    return `<a href="/turbine/${t.id}" class="card border ${borderCol} p-3 flex flex-col gap-2 hover:border-sky-600 transition-colors cursor-pointer no-underline">
+      <div class="flex items-center justify-between">
+        <span class="font-bold text-white text-sm">${t.name}</span>
+        <span class="text-base">${STATUS_ICON[t.status]||'⚫'}</span>
+      </div>
+      <div class="text-xs text-slate-500">${t.make}</div>
+      <div class="grid grid-cols-2 gap-1 text-xs mt-1">
+        <div><span class="text-slate-500">${L.power}</span><br><span class="text-sky-300 font-semibold">${pw} MW</span></div>
+        <div><span class="text-slate-500">${L.wind}</span><br><span class="text-emerald-300 font-semibold">${wd} m/s</span></div>
+        <div><span class="text-slate-500">${L.rpm}</span><br><span class="text-purple-300">${rp}</span></div>
+        <div><span class="text-slate-500">${L.temp}</span><br><span class="text-orange-300">${tp}°C</span></div>
+      </div>
+      ${t.open_events > 0 ? `<div class="text-xs text-amber-400 font-medium">⚠ ${t.open_events} ${LANG==='da'?'advarsel(er)':'alert(s)'}</div>` : ''}
+    </a>`;
+  }).join('');
+}
+
+// ── Leaflet Map ──────────────────────────────────────────────────────────────
+function renderMap(data) {
+  if (!mapInstance) {
+    mapInstance = L.map('map', { zoomControl: true, scrollWheelZoom: false });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
+      maxZoom: 18,
+    }).addTo(mapInstance);
+  }
+
+  data.forEach(t => {
+    const colMap = { operational:'#22c55e', warning:'#f59e0b', fault:'#ef4444', offline:'#6b7280' };
+    const col = colMap[t.status] || '#6b7280';
+    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="42" viewBox="0 0 32 42">
+      <circle cx="16" cy="14" r="13" fill="#1e293b" stroke="${col}" stroke-width="2.5"/>
+      <circle cx="16" cy="14" r="3" fill="${col}"/>
+      <path d="M16 11V3M16 11L8 6M16 11L24 6" stroke="${col}" stroke-width="2" stroke-linecap="round"/>
+      <line x1="16" y1="27" x2="16" y2="38" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="10" y1="38" x2="22" y2="38" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>
+    </svg>`;
+
+    const icon = L.divIcon({
+      html: svgIcon,
+      iconSize: [32, 42],
+      iconAnchor: [16, 42],
+      popupAnchor: [0, -44],
+      className: '',
+    });
+
+    const pw = t.latest?.power_kw != null ? (t.latest.power_kw/1000).toFixed(2)+' MW' : 'N/A';
+    const wd = t.latest?.wind_ms  != null ? t.latest.wind_ms.toFixed(1)+' m/s' : 'N/A';
+    const statusLabel = {operational:LANG==='da'?'Operationel':'Operational',warning:LANG==='da'?'Advarsel':'Warning',fault:LANG==='da'?'Fejl':'Fault',offline:'Offline'}[t.status]||t.status;
+
+    const popup = `<div style="font-family:system-ui;min-width:160px;background:#1e293b;color:#e2e8f0;border-radius:8px;padding:10px;border:1px solid #334155">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">${t.name}</div>
+      <div style="font-size:11px;color:#94a3b8;margin-bottom:6px">${t.make} ${t.model}</div>
+      <div style="font-size:12px;margin-bottom:2px">⚡ ${pw}</div>
+      <div style="font-size:12px;margin-bottom:6px">💨 ${wd}</div>
+      <a href="/turbine/${t.id}" style="display:block;text-align:center;background:#0ea5e9;color:white;padding:4px 8px;border-radius:4px;font-size:12px;text-decoration:none;margin-top:4px">${LANG==='da'?'Vis detaljer':'View Details'}</a>
+    </div>`;
+
+    if (markers[t.id]) {
+      mapInstance.removeLayer(markers[t.id]);
+    }
+    markers[t.id] = L.marker([t.lat, t.lng], { icon })
+      .addTo(mapInstance)
+      .bindPopup(popup, { className: 'dark-popup', maxWidth: 200 });
+  });
+
+  // Fit map to markers
+  const latlngs = data.map(t => [t.lat, t.lng]);
+  if (latlngs.length > 0) {
+    mapInstance.fitBounds(latlngs, { padding: [30, 30] });
+  }
+}
+
+// ── Fleet Power Chart ────────────────────────────────────────────────────────
+let powerChart;
+async function loadFleetPower() {
+  const r = await fetch('/api/fleet/power');
+  const d = await r.json();
+  if (!d.length) return;
+
+  const ctx = document.getElementById('fleetPowerChart').getContext('2d');
+  if (powerChart) powerChart.destroy();
+
+  powerChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: d.map(x => new Date(x.t)),
+      datasets: [
+        {
+          label: LANG==='da' ? 'Total effekt (MW)' : 'Total Output (MW)',
+          data: d.map(x => (x.total_kw/1000).toFixed(2)),
+          backgroundColor: 'rgba(14,165,233,0.35)',
+          borderColor: 'rgba(14,165,233,0.8)',
+          borderWidth: 1,
+          borderRadius: 2,
+          yAxisID: 'y',
+        },
+        {
+          label: LANG==='da' ? 'Gns. vind (m/s)' : 'Avg Wind (m/s)',
+          data: d.map(x => x.avg_wind.toFixed(2)),
+          type: 'line',
+          borderColor: 'rgba(52,211,153,0.8)',
+          backgroundColor: 'transparent',
+          pointRadius: 0,
+          borderWidth: 1.5,
+          tension: 0.4,
+          yAxisID: 'y2',
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: { legend: { labels:{ color:'#94a3b8', font:{size:11} }, position:'bottom' } },
+      scales: {
+        x: { type:'time', time:{unit:'hour', displayFormats:{hour:'HH:mm'}}, grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b', maxTicksLimit:12, font:{size:10}} },
+        y:  { grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b', font:{size:10}}, position:'left'  },
+        y2: { grid:{display:false}, ticks:{color:'#34d399', font:{size:10}}, position:'right' },
+      }
+    }
+  });
+  document.getElementById('fleetPowerUpdated').textContent = new Date().toLocaleTimeString();
+}
+
+// ── Events ───────────────────────────────────────────────────────────────────
+async function loadEvents() {
+  const r = await fetch('/api/events?limit=15');
+  const events = await r.json();
+  const el = document.getElementById('eventsList');
+  if (!events.length) { el.innerHTML = `<div class="px-4 py-4 text-slate-500 text-sm">${LANG==='da'?'Ingen hændelser':'No events'}</div>`; return; }
+  const sevCol = { critical:'text-red-400', fault:'text-red-300', warning:'text-amber-300', info:'text-sky-300' };
+  const sevIcon = { critical:'🔴', fault:'🔴', warning:'🟡', info:'🔵' };
+  el.innerHTML = events.map(e => `
+    <div class="px-4 py-2.5 border-b border-slate-800 hover:bg-slate-700/30 transition-colors">
+      <div class="flex items-start gap-2">
+        <span class="text-sm mt-0.5">${sevIcon[e.severity]||'⚪'}</span>
+        <div class="flex-1 min-w-0">
+          <div class="text-xs font-semibold ${sevCol[e.severity]||'text-slate-300'}">${e.code} · T-${e.turbine_id}</div>
+          <div class="text-xs text-slate-300 mt-0.5 line-clamp-2">${e.message}</div>
+          <div class="text-xs text-slate-600 mt-1">${new Date(e.ts).toLocaleString()}</div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+loadFleet();
+loadEvents();
+loadFleetPower();
+
+// Auto-refresh every 60 seconds
+setInterval(() => { loadFleet(); loadEvents(); loadFleetPower(); }, 60000);
+</script>
+{% endblock %}

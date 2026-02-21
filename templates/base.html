@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}Wind Monitor{% endblock %}</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand:   { DEFAULT: '#0ea5e9', dark: '#0284c7', light: '#e0f2fe' },
+            success: '#22c55e',
+            warning: '#f59e0b',
+            fault:   '#ef4444',
+            offline: '#6b7280',
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Chart.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <!-- Chart.js Adapter (date) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background:#0f172a; color:#e2e8f0; }
+    .card { background:#1e293b; border:1px solid #334155; border-radius:0.75rem; }
+    .status-operational { color:#22c55e; }
+    .status-warning      { color:#f59e0b; }
+    .status-fault        { color:#ef4444; }
+    .status-offline      { color:#6b7280; }
+    .badge-operational { background:#14532d; color:#22c55e; }
+    .badge-warning      { background:#78350f; color:#fbbf24; }
+    .badge-fault        { background:#7f1d1d; color:#fca5a5; }
+    .badge-offline      { background:#1f2937; color:#9ca3af; }
+    .nav-link { transition: color .15s, background .15s; }
+    .nav-link:hover { color:#38bdf8; }
+    .gauge-container { position:relative; display:inline-flex; align-items:center; justify-content:center; }
+    #map { z-index:0; }
+    .leaflet-container { background:#1e293b !important; }
+    /* Custom scrollbar */
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:#1e293b; }
+    ::-webkit-scrollbar-thumb { background:#475569; border-radius:3px; }
+    /* Pulse animation for offline turbines */
+    @keyframes pulse-red { 0%,100%{opacity:1} 50%{opacity:.5} }
+    .pulse-red { animation: pulse-red 2s infinite; }
+    /* Mobile bottom nav */
+    @media (max-width:640px) { .sidebar { display:none; } .mobile-nav { display:flex; } }
+    @media (min-width:641px) { .mobile-nav { display:none; } }
+  </style>
+
+  {% block head_extra %}{% endblock %}
+</head>
+<body class="min-h-screen flex flex-col">
+
+<!-- ── Top Navigation ─────────────────────────────────────────────────── -->
+<nav class="bg-slate-900 border-b border-slate-700 px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+  <div class="flex items-center gap-3">
+    <!-- Hamburger (mobile) -->
+    <button id="menuToggle" class="sm:hidden text-slate-400 hover:text-white" onclick="document.getElementById('mobileMenu').classList.toggle('hidden')">
+      <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+    <!-- Logo -->
+    <a href="{{ url_for('dashboard') }}" class="flex items-center gap-2">
+      <svg class="w-7 h-7 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <circle cx="12" cy="12" r="2"/>
+        <path d="M12 10V2M12 10l-6.5-6.5M12 10l6.5-6.5" stroke-linecap="round"/>
+        <path d="M12 2a10 10 0 1 0 10 10" stroke-linecap="round"/>
+      </svg>
+      <span class="font-bold text-white text-lg tracking-tight">Wind<span class="text-sky-400">Monitor</span></span>
+    </a>
+  </div>
+
+  <!-- Center nav (desktop) -->
+  <div class="hidden sm:flex items-center gap-1 text-sm font-medium text-slate-400">
+    <a href="{{ url_for('dashboard') }}" class="nav-link px-3 py-1.5 rounded-lg {% if request.endpoint=='dashboard' %}bg-slate-800 text-white{% endif %}">
+      {% if lang=='da' %}Oversigt{% else %}Overview{% endif %}
+    </a>
+  </div>
+
+  <!-- Right side -->
+  <div class="flex items-center gap-3 text-sm">
+    <!-- Seed status indicator -->
+    <span id="seedStatus" class="hidden sm:flex items-center gap-1 text-xs text-slate-500">
+      <span id="seedDot" class="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>
+      <span id="seedLabel">Loading data...</span>
+    </span>
+
+    <!-- Lang toggle -->
+    <div class="flex items-center gap-1 text-xs bg-slate-800 rounded-lg p-1">
+      <a href="{{ url_for('set_lang', lang='en') }}" class="px-2 py-1 rounded {% if lang=='en' %}bg-sky-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">EN</a>
+      <a href="{{ url_for('set_lang', lang='da') }}" class="px-2 py-1 rounded {% if lang=='da' %}bg-sky-600 text-white{% else %}text-slate-400 hover:text-white{% endif %}">DA</a>
+    </div>
+
+    <!-- User menu -->
+    <div class="flex items-center gap-2 text-slate-400">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+      <span class="hidden sm:inline text-xs">admin</span>
+    </div>
+    <a href="{{ url_for('logout') }}" class="text-slate-400 hover:text-red-400 transition-colors" title="Logout">
+      <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+    </a>
+  </div>
+</nav>
+
+<!-- Mobile dropdown menu -->
+<div id="mobileMenu" class="hidden sm:hidden bg-slate-900 border-b border-slate-700 px-4 py-2 text-sm text-slate-300">
+  <a href="{{ url_for('dashboard') }}" class="block py-2 border-b border-slate-800">
+    {% if lang=='da' %}Oversigt{% else %}Overview{% endif %}
+  </a>
+  <a href="{{ url_for('logout') }}" class="block py-2 text-red-400">
+    {% if lang=='da' %}Log ud{% else %}Logout{% endif %}
+  </a>
+</div>
+
+<!-- ── Page Content ────────────────────────────────────────────────────── -->
+<main class="flex-1 px-4 py-4 max-w-screen-2xl mx-auto w-full">
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ── Footer ────────────────────────────────────────────────────────── -->
+<footer class="text-center text-xs text-slate-600 py-3 border-t border-slate-800">
+  WindMonitor v0.1 · {% if lang=='da' %}AI-drevet vindmølleovervågning{% else %}AI-powered wind turbine monitoring{% endif %} ·
+  <a href="#" class="hover:text-slate-400">API</a>
+</footer>
+
+<script>
+// Check seed status
+async function checkSeed() {
+  try {
+    const r = await fetch('/status');
+    const d = await r.json();
+    const dot = document.getElementById('seedDot');
+    const lbl = document.getElementById('seedLabel');
+    const el  = document.getElementById('seedStatus');
+    if (el) el.classList.remove('hidden');
+    if (d.seeded) {
+      if (dot) { dot.className = 'w-2 h-2 rounded-full bg-green-500 inline-block'; }
+      if (lbl) lbl.textContent = 'Live';
+    } else {
+      setTimeout(checkSeed, 3000);
+    }
+  } catch(e) {}
+}
+checkSeed();
+
+// Helper: status badge
+function statusBadge(s, lang='en') {
+  const labels = {
+    operational: {en:'Operational', da:'Operationel'},
+    warning:     {en:'Warning',     da:'Advarsel'},
+    fault:       {en:'Fault',       da:'Fejl'},
+    offline:     {en:'Offline',     da:'Offline'},
+  };
+  const text = (labels[s]||{en:s,da:s})[lang]||s;
+  return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-${s}">${text}</span>`;
+}
+const LANG = "{{ lang }}";
+</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

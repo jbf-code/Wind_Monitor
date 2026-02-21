@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Wind Monitor · Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background:#0f172a; color:#e2e8f0; }
+    .card { background:#1e293b; border:1px solid #334155; border-radius:1rem; }
+    @keyframes spin-slow { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+    .spin-slow { animation: spin-slow 20s linear infinite; }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+
+  <!-- Background turbine decoration -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none select-none opacity-5">
+    <svg class="absolute -top-20 -right-20 w-96 h-96 text-sky-400 spin-slow" viewBox="0 0 100 100" fill="none" stroke="currentColor">
+      <circle cx="50" cy="50" r="3"/>
+      <path d="M50 47V10M50 47L18 22M50 47L82 22" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <svg class="absolute -bottom-20 -left-20 w-72 h-72 text-sky-400 spin-slow" viewBox="0 0 100 100" fill="none" stroke="currentColor" style="animation-duration:30s">
+      <circle cx="50" cy="50" r="3"/>
+      <path d="M50 47V10M50 47L18 22M50 47L82 22" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <div class="w-full max-w-sm">
+    <!-- Logo -->
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-16 h-16 bg-sky-900/50 rounded-2xl mb-4 border border-sky-700/50">
+        <svg class="w-9 h-9 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="2"/>
+          <path d="M12 10V2M12 10l-6.5-6.5M12 10l6.5-6.5" stroke-linecap="round"/>
+          <path d="M12 2a10 10 0 1 0 10 10" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1 class="text-2xl font-bold text-white">Wind<span class="text-sky-400">Monitor</span></h1>
+      <p class="text-slate-400 text-sm mt-1">
+        {% if lang=='da' %}AI-drevet vindmølleovervågning{% else %}AI-powered wind turbine monitoring{% endif %}
+      </p>
+    </div>
+
+    <!-- Card -->
+    <div class="card p-8">
+      {% if error %}
+      <div class="bg-red-900/40 border border-red-700 text-red-300 rounded-lg px-4 py-3 mb-6 text-sm flex items-center gap-2">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        {% if lang=='da' %}Ugyldig brugernavn eller adgangskode{% else %}Invalid username or password{% endif %}
+      </div>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('login') }}">
+        <div class="mb-5">
+          <label class="block text-sm font-medium text-slate-300 mb-2">
+            {% if lang=='da' %}Brugernavn{% else %}Username{% endif %}
+          </label>
+          <input
+            type="text" name="username" value="admin" autocomplete="username"
+            class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors"
+            placeholder="admin"
+          />
+        </div>
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-slate-300 mb-2">
+            {% if lang=='da' %}Adgangskode{% else %}Password{% endif %}
+          </label>
+          <input
+            type="password" name="password" autocomplete="current-password"
+            class="w-full bg-slate-900 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-colors"
+            placeholder="••••••••"
+          />
+        </div>
+        <button type="submit"
+          class="w-full bg-sky-600 hover:bg-sky-500 text-white font-semibold py-2.5 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-900">
+          {% if lang=='da' %}Log ind{% else %}Sign in{% endif %}
+        </button>
+      </form>
+    </div>
+
+    <!-- Lang toggle -->
+    <div class="text-center mt-6 flex items-center justify-center gap-2 text-xs text-slate-500">
+      <a href="{{ url_for('set_lang', lang='en') }}" class="hover:text-white {% if lang=='en' %}text-sky-400 font-semibold{% endif %}">English</a>
+      <span>·</span>
+      <a href="{{ url_for('set_lang', lang='da') }}" class="hover:text-white {% if lang=='da' %}text-sky-400 font-semibold{% endif %}">Dansk</a>
+    </div>
+
+    <p class="text-center text-xs text-slate-600 mt-4">
+      WindMonitor v0.1 · Demo credentials: admin / JBF_2026
+    </p>
+  </div>
+
+</body>
+</html>
