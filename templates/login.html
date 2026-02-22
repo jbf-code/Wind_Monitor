@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Wind Monitor · Login</title>
+  <title>TurbineOS · Login</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: 'Segoe UI', system-ui, sans-serif; background:#0f172a; color:#e2e8f0; }
@@ -29,16 +29,40 @@
   <div class="w-full max-w-sm">
     <!-- Logo -->
     <div class="text-center mb-8">
-      <div class="inline-flex items-center justify-center w-16 h-16 bg-sky-900/50 rounded-2xl mb-4 border border-sky-700/50">
-        <svg class="w-9 h-9 text-sky-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="12" cy="12" r="2"/>
-          <path d="M12 10V2M12 10l-6.5-6.5M12 10l6.5-6.5" stroke-linecap="round"/>
-          <path d="M12 2a10 10 0 1 0 10 10" stroke-linecap="round"/>
+      <!-- Large hex icon -->
+      <div class="inline-flex items-center justify-center mb-5">
+        <svg viewBox="0 0 80 80" class="w-20 h-20" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <!-- Outer glow ring -->
+          <circle cx="40" cy="40" r="38" stroke="#0ea5e9" stroke-width="0.5" opacity="0.2"/>
+          <!-- Hex background -->
+          <path d="M40 6 L70 23 L70 57 L40 74 L10 57 L10 23 Z" fill="#0c1a2e" stroke="#0ea5e9" stroke-width="2"/>
+          <!-- Inner hex ring -->
+          <path d="M40 14 L63 27 L63 53 L40 66 L17 53 L17 27 Z" fill="none" stroke="#0ea5e9" stroke-width="0.8" opacity="0.35"/>
+          <!-- Rotor hub -->
+          <circle cx="40" cy="38" r="4.5" fill="#38bdf8"/>
+          <circle cx="40" cy="38" r="2" fill="#0c1a2e"/>
+          <!-- Blade 1 — up -->
+          <path d="M40 33.5 C38.5 27, 35 19, 40 13 C44 18, 42 26, 40 33.5Z" fill="#0ea5e9" opacity="0.95"/>
+          <!-- Blade 2 — lower-left -->
+          <path d="M36.2 40.5 C30 43.5, 22 44.5, 19 40 C22 35, 30 37, 36.2 40.5Z" fill="#0ea5e9" opacity="0.95"/>
+          <!-- Blade 3 — lower-right -->
+          <path d="M43.8 40.5 C50 43.5, 58 44.5, 61 40 C58 35, 50 37, 43.8 40.5Z" fill="#38bdf8" opacity="0.95"/>
+          <!-- Tower -->
+          <line x1="40" y1="42.5" x2="40" y2="61" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+          <!-- Base plate -->
+          <line x1="33" y1="61" x2="47" y2="61" stroke="#38bdf8" stroke-width="3" stroke-linecap="round"/>
+          <!-- Corner circuit dots -->
+          <circle cx="40" cy="71.5" r="1.8" fill="#0ea5e9" opacity="0.5"/>
+          <circle cx="67" cy="55.5" r="1.8" fill="#0ea5e9" opacity="0.5"/>
+          <circle cx="67" cy="24.5" r="1.8" fill="#0ea5e9" opacity="0.5"/>
+          <circle cx="13" cy="55.5" r="1.8" fill="#0ea5e9" opacity="0.5"/>
+          <circle cx="13" cy="24.5" r="1.8" fill="#0ea5e9" opacity="0.5"/>
+          <circle cx="40" cy="8.5" r="1.8" fill="#0ea5e9" opacity="0.5"/>
         </svg>
       </div>
-      <h1 class="text-2xl font-bold text-white">Wind<span class="text-sky-400">Monitor</span></h1>
-      <p class="text-slate-400 text-sm mt-1">
-        {% if lang=='da' %}AI-drevet vindmølleovervågning{% else %}AI-powered wind turbine monitoring{% endif %}
+      <h1 class="text-2xl font-bold text-white tracking-tight">Turbine<span class="text-sky-400">OS</span></h1>
+      <p class="text-slate-400 text-xs mt-1.5 tracking-widest uppercase font-medium">
+        {% if lang=='da' %}Næste generations overvågning{% else %}Next Generation Monitoring{% endif %}
       </p>
     </div>
 
@@ -87,7 +111,7 @@
     </div>
 
     <p class="text-center text-xs text-slate-600 mt-4">
-      WindMonitor v0.1 · Demo credentials: admin / JBF_2026
+      TurbineOS v0.1 · Demo credentials: admin / JBF_2026
     </p>
   </div>
 
