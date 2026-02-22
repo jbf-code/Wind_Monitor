@@ -342,8 +342,32 @@
     </div>
 
     <!-- Loading state -->
-    <div id="aiLoading" class="text-sm text-slate-400 py-6 text-center">
-      <div class="animate-pulse">{% if lang=='da' %}Analyserer sensordata...{% else %}Analyzing sensor data...{% endif %}</div>
+    <div id="aiLoading" class="text-sm text-slate-400 py-6 text-center hidden">
+      <!-- Step progress -->
+      <div id="aiStepIndicator" class="flex flex-col items-center gap-3">
+        <div class="flex items-center gap-3 w-full max-w-xs">
+          <div id="aiStep1Dot" class="w-2.5 h-2.5 rounded-full bg-violet-400 shrink-0"></div>
+          <div class="flex-1">
+            <div id="aiStep1Label" class="text-xs font-medium text-violet-300 text-left">
+              {% if lang=='da' %}Trin 1/2: Beregner ML-analyse...{% else %}Step 1/2: Computing ML analysis...{% endif %}
+            </div>
+            <div id="aiStep1Bar" class="mt-1 h-1 rounded-full bg-slate-700 overflow-hidden">
+              <div class="h-full rounded-full bg-violet-500 animate-pulse" style="width:100%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 w-full max-w-xs opacity-40" id="aiStep2Row">
+          <div id="aiStep2Dot" class="w-2.5 h-2.5 rounded-full bg-slate-600 shrink-0"></div>
+          <div class="flex-1">
+            <div id="aiStep2Label" class="text-xs font-medium text-slate-400 text-left">
+              {% if lang=='da' %}Trin 2/2: Kører AI-diagnose...{% else %}Step 2/2: Running AI diagnostic...{% endif %}
+            </div>
+            <div id="aiStep2Bar" class="mt-1 h-1 rounded-full bg-slate-700 overflow-hidden">
+              <div class="h-full rounded-full bg-violet-500 hidden" id="aiStep2Progress" style="width:100%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Summary card (shown after load) -->
@@ -879,6 +903,50 @@ function toggleFullAnalysis() {
     : (LANG==='da' ? 'Skjul fuld analyse ▴' : 'Hide full analysis ▴');
 }
 
+// ── AI Step helpers ───────────────────────────────────────────────────────────
+function _aiShowStep(step) {
+  // step: 1 = ML running, 2 = Claude running
+  const step2Row = document.getElementById('aiStep2Row');
+  const step1Dot = document.getElementById('aiStep1Dot');
+  const step2Dot = document.getElementById('aiStep2Dot');
+  const step2Prog = document.getElementById('aiStep2Progress');
+
+  if (step === 1) {
+    // Step 1 active, step 2 dimmed
+    step2Row.classList.add('opacity-40');
+    step2Dot.className = 'w-2.5 h-2.5 rounded-full bg-slate-600 shrink-0';
+    step2Prog.classList.add('hidden');
+  } else {
+    // Step 1 done (green check), step 2 active
+    step1Dot.className = 'w-2.5 h-2.5 rounded-full bg-green-400 shrink-0';
+    document.getElementById('aiStep1Label').textContent =
+      LANG === 'da' ? '✓ Trin 1/2: ML-analyse klar' : '✓ Step 1/2: ML analysis ready';
+    document.getElementById('aiStep1Bar').innerHTML =
+      '<div class="h-full rounded-full bg-green-500" style="width:100%"></div>';
+
+    step2Row.classList.remove('opacity-40');
+    step2Dot.className = 'w-2.5 h-2.5 rounded-full bg-violet-400 shrink-0 animate-pulse';
+    document.getElementById('aiStep2Label').className = 'text-xs font-medium text-violet-300 text-left';
+    step2Prog.classList.remove('hidden');
+  }
+}
+
+function _waitForMl(resolve, reject, attempts) {
+  attempts = attempts || 0;
+  if (attempts >= 20) { resolve('timeout'); return; }  // give up after ~60 s, still run AI
+  fetch(`/api/ml/insights/${TURBINE_ID}`)
+    .then(r => r.json())
+    .then(d => {
+      if (d.status === 'ok') {
+        renderMlPanel(d);    // refresh the ML panel with fresh data
+        resolve('ok');
+      } else {
+        setTimeout(() => _waitForMl(resolve, reject, attempts + 1), 3000);
+      }
+    })
+    .catch(() => setTimeout(() => _waitForMl(resolve, reject, attempts + 1), 3000));
+}
+
 async function runAiAnalysis() {
   // Reset modal state
   document.getElementById('aiModal').classList.remove('hidden');
@@ -886,6 +954,28 @@ async function runAiAnalysis() {
   document.getElementById('aiSummary').classList.add('hidden');
   document.getElementById('aiError').classList.add('hidden');
   document.getElementById('aiFullAnalysis').classList.add('hidden');
+
+  // ── STEP 1: Run ML analysis first ─────────────────────────────────────────
+  _aiShowStep(1);
+  // Reset step labels to their defaults in case of re-run
+  document.getElementById('aiStep1Label').textContent =
+    LANG === 'da' ? 'Trin 1/2: Beregner ML-analyse...' : 'Step 1/2: Computing ML analysis...';
+  document.getElementById('aiStep1Bar').innerHTML =
+    '<div class="h-full rounded-full bg-violet-500 animate-pulse" style="width:100%"></div>';
+  document.getElementById('aiStep1Dot').className = 'w-2.5 h-2.5 rounded-full bg-violet-400 shrink-0';
+
+  try {
+    // Fire ML run (non-blocking on server)
+    await fetch('/api/ml/run', { method: 'POST' });
+    // Poll until ML result is written (or timeout)
+    await new Promise((resolve, reject) => _waitForMl(resolve, reject, 0));
+  } catch(mlErr) {
+    // ML failure is non-fatal — Claude still runs with whatever data is in DB
+    console.warn('[AI] ML pre-run failed, continuing anyway:', mlErr);
+  }
+
+  // ── STEP 2: Run Claude AI analysis ────────────────────────────────────────
+  _aiShowStep(2);
 
   try {
     const r = await fetch(`/api/ai/analyze/${TURBINE_ID}`, { method:'POST' });
@@ -991,7 +1081,7 @@ async function runAiAnalysis() {
     document.getElementById('aiError').textContent = `Error: ${e.message}`;
     document.getElementById('aiError').classList.remove('hidden');
   }
-}
+}  // end runAiAnalysis
 
 // ── Sensor Mode — Detail Page ────────────────────────────────────────────────
 // Reads mode from localStorage (set by nav toggle in base.html).
