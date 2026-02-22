@@ -5,6 +5,20 @@
 <script>
   window.GOOGLE_MAPS_KEY = "{{ google_maps_key }}";
 </script>
+<style>
+  /* Chart expand / full-width */
+  .chart-card.expanded {
+    position: relative;
+    z-index: 10;
+    grid-column: 1 / -1;   /* span full grid width */
+  }
+  .chart-card.expanded .chart-wrap {
+    height: 380px !important;
+  }
+  #chartsGrid:has(.expanded) {
+    grid-template-columns: 1fr !important; /* collapse grid to single col when one is expanded */
+  }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -110,58 +124,84 @@
 </div>
 
 <!-- ── Time-Series Charts ─────────────────────────────────────────────── -->
-<div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+<div id="chartsGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+
   <!-- Power + Wind -->
-  <div class="card p-4">
+  <div id="card-pw" class="card p-4 chart-card">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-white">{% if lang=='da' %}Effekt & Vindhastighed{% else %}Power Output & Wind Speed{% endif %}</h2>
-      <div class="flex gap-1 text-xs">
-        <button onclick="setRange('24h')" id="range-24h" class="range-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
-        <button onclick="setRange('7d')"  id="range-7d"  class="range-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
-        <button onclick="setRange('21d')" id="range-21d" class="range-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+      <div class="flex items-center gap-2 text-xs">
+        <div class="flex gap-1">
+          <button onclick="setRange('24h')" id="range-24h" class="range-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+          <button onclick="setRange('7d')"  id="range-7d"  class="range-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+          <button onclick="setRange('21d')" id="range-21d" class="range-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+        </div>
+        <button onclick="toggleExpand('card-pw', 'chartPowerWind')" class="expand-btn text-slate-400 hover:text-white p-0.5 rounded" title="Expand">
+          <svg class="w-4 h-4 icon-expand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+          <svg class="w-4 h-4 icon-collapse hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>
+        </button>
       </div>
     </div>
-    <div style="height:200px;"><canvas id="chartPowerWind"></canvas></div>
+    <div class="chart-wrap" style="height:200px;"><canvas id="chartPowerWind"></canvas></div>
   </div>
 
   <!-- Temperature -->
-  <div class="card p-4">
+  <div id="card-temp" class="card p-4 chart-card">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-white">{% if lang=='da' %}Temperaturer{% else %}Temperatures{% endif %}</h2>
-      <div class="flex gap-1 text-xs">
-        <button onclick="setRange2('24h')" id="range2-24h" class="range2-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
-        <button onclick="setRange2('7d')"  id="range2-7d"  class="range2-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
-        <button onclick="setRange2('21d')" id="range2-21d" class="range2-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+      <div class="flex items-center gap-2 text-xs">
+        <div class="flex gap-1">
+          <button onclick="setRange('24h')" id="range2-24h" class="range2-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+          <button onclick="setRange('7d')"  id="range2-7d"  class="range2-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+          <button onclick="setRange('21d')" id="range2-21d" class="range2-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+        </div>
+        <button onclick="toggleExpand('card-temp', 'chartTemps')" class="expand-btn text-slate-400 hover:text-white p-0.5 rounded" title="Expand">
+          <svg class="w-4 h-4 icon-expand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+          <svg class="w-4 h-4 icon-collapse hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>
+        </button>
       </div>
     </div>
-    <div style="height:200px;"><canvas id="chartTemps"></canvas></div>
+    <div class="chart-wrap" style="height:200px;"><canvas id="chartTemps"></canvas></div>
   </div>
 
   <!-- Vibration -->
-  <div class="card p-4">
+  <div id="card-vib" class="card p-4 chart-card">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-white">{% if lang=='da' %}Vibration (gearkasse){% else %}Vibration (Gearbox){% endif %}</h2>
-      <div class="flex gap-1 text-xs">
-        <button onclick="setRange('24h')" id="range3-24h" class="range3-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
-        <button onclick="setRange('7d')"  id="range3-7d"  class="range3-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
-        <button onclick="setRange('21d')" id="range3-21d" class="range3-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+      <div class="flex items-center gap-2 text-xs">
+        <div class="flex gap-1">
+          <button onclick="setRange('24h')" id="range3-24h" class="range3-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+          <button onclick="setRange('7d')"  id="range3-7d"  class="range3-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+          <button onclick="setRange('21d')" id="range3-21d" class="range3-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+        </div>
+        <button onclick="toggleExpand('card-vib', 'chartVibration')" class="expand-btn text-slate-400 hover:text-white p-0.5 rounded" title="Expand">
+          <svg class="w-4 h-4 icon-expand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+          <svg class="w-4 h-4 icon-collapse hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>
+        </button>
       </div>
     </div>
-    <div style="height:180px;"><canvas id="chartVibration"></canvas></div>
+    <div class="chart-wrap" style="height:180px;"><canvas id="chartVibration"></canvas></div>
   </div>
 
   <!-- RPM + Pitch -->
-  <div class="card p-4">
+  <div id="card-rpm" class="card p-4 chart-card">
     <div class="flex items-center justify-between mb-3">
       <h2 class="text-sm font-semibold text-white">RPM & {% if lang=='da' %}Pitch{% else %}Pitch Angle{% endif %}</h2>
-      <div class="flex gap-1 text-xs">
-        <button onclick="setRange('24h')" id="range4-24h" class="range4-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
-        <button onclick="setRange('7d')"  id="range4-7d"  class="range4-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
-        <button onclick="setRange('21d')" id="range4-21d" class="range4-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+      <div class="flex items-center gap-2 text-xs">
+        <div class="flex gap-1">
+          <button onclick="setRange('24h')" id="range4-24h" class="range4-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+          <button onclick="setRange('7d')"  id="range4-7d"  class="range4-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+          <button onclick="setRange('21d')" id="range4-21d" class="range4-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+        </div>
+        <button onclick="toggleExpand('card-rpm', 'chartRpmPitch')" class="expand-btn text-slate-400 hover:text-white p-0.5 rounded" title="Expand">
+          <svg class="w-4 h-4 icon-expand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+          <svg class="w-4 h-4 icon-collapse hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>
+        </button>
       </div>
     </div>
-    <div style="height:180px;"><canvas id="chartRpmPitch"></canvas></div>
+    <div class="chart-wrap" style="height:180px;"><canvas id="chartRpmPitch"></canvas></div>
   </div>
+
 </div>
 
 <!-- ── Map + Events ───────────────────────────────────────────────────── -->
@@ -404,7 +444,7 @@ async function loadPowerWindChart(range) {
     data: {
       datasets: [
         { type:'bar',  label: LANG==='da'?'Effekt (kW)':'Power (kW)', data: pts(pw), backgroundColor:'rgba(14,165,233,0.35)', borderColor:'rgba(14,165,233,0.8)', borderWidth:1, borderRadius:1, yAxisID:'y' },
-        { type:'line', label: LANG==='da'?'Vind (m/s)':'Wind (m/s)', data: pts(wd), borderColor:'rgba(52,211,153,0.8)', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y2' },
+        { type:'line', label: LANG==='da'?'Vind (m/s)':'Wind (m/s)', data: pts(wd), borderColor:'rgba(52,211,153,0.8)', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y2', parsing:false },
       ]
     },
     options: chartOpts(range, { y:{ grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b',font:{size:10}}, position:'left' }, y2:{ grid:{display:false}, ticks:{color:'#34d399',font:{size:10}}, position:'right' } })
@@ -424,10 +464,10 @@ async function loadTempChart(range) {
     type:'line',
     data: {
       datasets: [
-        { label: LANG==='da'?'Leje':'Bearing',     data: pts(bt),  borderColor:'#f97316', pointRadius:0, borderWidth:1.5, tension:0.3 },
-        { label: LANG==='da'?'Gearkasse':'Gearbox', data: pts(gt),  borderColor:'#fb923c', pointRadius:0, borderWidth:1.5, tension:0.3 },
-        { label: 'Generator',                        data: pts(gen), borderColor:'#fbbf24', pointRadius:0, borderWidth:1.5, tension:0.3 },
-        { label: LANG==='da'?'Olie':'Oil',           data: pts(ot),  borderColor:'#a78bfa', pointRadius:0, borderWidth:1.5, tension:0.3 },
+        { label: LANG==='da'?'Leje':'Bearing',      data: pts(bt),  borderColor:'#f97316', pointRadius:0, borderWidth:1.5, tension:0.3, parsing:false },
+        { label: LANG==='da'?'Gearkasse':'Gearbox',  data: pts(gt),  borderColor:'#fb923c', pointRadius:0, borderWidth:1.5, tension:0.3, parsing:false },
+        { label: 'Generator',                         data: pts(gen), borderColor:'#fbbf24', pointRadius:0, borderWidth:1.5, tension:0.3, parsing:false },
+        { label: LANG==='da'?'Olie':'Oil',            data: pts(ot),  borderColor:'#a78bfa', pointRadius:0, borderWidth:1.5, tension:0.3, parsing:false },
       ]
     },
     options: chartOpts(range)
@@ -449,9 +489,9 @@ async function loadVibrationChart(range) {
     type:'line',
     data: {
       datasets: [
-        { label:'X', data: pts(vx), borderColor:'#ef4444', pointRadius:0, borderWidth:1.5, tension:0.3 },
-        { label:'Y', data: pts(vy), borderColor:'#a855f7', pointRadius:0, borderWidth:1.5, tension:0.3 },
-        { label:'Z', data: pts(vz), borderColor:'#3b82f6', pointRadius:0, borderWidth:1.5, tension:0.3 },
+        { label:'X', data: pts(vx), borderColor:'#ef4444', pointRadius:0, borderWidth:1.5, tension:0.3, parsing:false },
+        { label:'Y', data: pts(vy), borderColor:'#a855f7', pointRadius:0, borderWidth:1.5, tension:0.3, parsing:false },
+        { label:'Z', data: pts(vz), borderColor:'#3b82f6', pointRadius:0, borderWidth:1.5, tension:0.3, parsing:false },
       ]
     },
     options: opts
@@ -469,12 +509,47 @@ async function loadRpmPitchChart(range) {
   chartRP = new Chart(ctx, {
     data: {
       datasets: [
-        { type:'line', label:'RPM',   data: pts(rpm),   borderColor:'#a855f7', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y' },
-        { type:'line', label: LANG==='da'?'Pitch (°)':'Pitch (°)', data: pts(pitch), borderColor:'#06b6d4', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y2' },
+        { type:'line', label:'RPM',   data: pts(rpm),   borderColor:'#a855f7', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y',  parsing:false },
+        { type:'line', label: LANG==='da'?'Pitch (°)':'Pitch (°)', data: pts(pitch), borderColor:'#06b6d4', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y2', parsing:false },
       ]
     },
     options: chartOpts(range, { y:{ grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b',font:{size:10}}, position:'left' }, y2:{ grid:{display:false}, ticks:{color:'#06b6d4',font:{size:10}}, position:'right' } })
   });
+}
+
+// ── Chart expand / collapse ───────────────────────────────────────────────────
+const CHART_RELOAD = {
+  'card-pw':   () => loadPowerWindChart(currentRange),
+  'card-temp': () => loadTempChart(currentRange),
+  'card-vib':  () => loadVibrationChart(currentRange),
+  'card-rpm':  () => loadRpmPitchChart(currentRange),
+};
+
+function toggleExpand(cardId, canvasId) {
+  const card = document.getElementById(cardId);
+  const isExpanded = card.classList.contains('expanded');
+
+  // Collapse any other expanded card first
+  document.querySelectorAll('.chart-card.expanded').forEach(c => {
+    if (c.id !== cardId) {
+      c.classList.remove('expanded');
+      c.querySelector('.icon-expand').classList.remove('hidden');
+      c.querySelector('.icon-collapse').classList.add('hidden');
+    }
+  });
+
+  if (isExpanded) {
+    card.classList.remove('expanded');
+    card.querySelector('.icon-expand').classList.remove('hidden');
+    card.querySelector('.icon-collapse').classList.add('hidden');
+  } else {
+    card.classList.add('expanded');
+    card.querySelector('.icon-expand').classList.add('hidden');
+    card.querySelector('.icon-collapse').classList.remove('hidden');
+  }
+
+  // Reload chart so it redraws at the new size
+  setTimeout(() => { if (CHART_RELOAD[cardId]) CHART_RELOAD[cardId](); }, 50);
 }
 
 // Single unified range setter — updates all 4 charts and all 4 button groups
