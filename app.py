@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, abort
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from sqlalchemy import func
-from database import db, Turbine, SensorReading, TurbineEvent
+from database import db, Turbine, SensorReading, TurbineEvent, MLInsight
 
 app = Flask(__name__)
 
@@ -192,6 +192,47 @@ def api_turbine(turbine_id):
         "latest": _reading_dict(latest) if latest else None,
         "events": [_event_dict(e) for e in events],
     })
+
+# ─── API: ML Insights ──────────────────────────────────────────────────────────
+@app.route('/api/ml/insights/<int:turbine_id>')
+@login_required
+def api_ml_insights(turbine_id):
+    """Return the latest ML insight row for a turbine."""
+    import json as json_lib
+    insight = MLInsight.query.filter_by(turbine_id=turbine_id).first()
+    if not insight:
+        return jsonify({
+            "status": "no_data",
+            "message": "ML analysis not yet run. Click 'Run ML Analysis'.",
+        })
+    return jsonify({
+        "status":        "ok",
+        "turbine_id":    turbine_id,
+        "computed_at":   insight.computed_at.isoformat(),
+        "health_score":  insight.health_score,
+        "anomaly_scores": json_lib.loads(insight.anomaly_scores or '{}'),
+        "trends":         json_lib.loads(insight.trend_data   or '{}'),
+        "peer_ranks":     json_lib.loads(insight.peer_ranks   or '{}'),
+        "ml_summary":     insight.ml_summary,
+    })
+
+
+@app.route('/api/ml/run', methods=['POST'])
+@login_required
+def api_ml_run():
+    """Trigger ML worker in a background thread. Returns immediately."""
+    def _run():
+        with app.app_context():
+            from ml_worker import run_ml_analysis
+            run_ml_analysis(session=db.session)
+
+    t = threading.Thread(target=_run, daemon=True)
+    t.start()
+    return jsonify({
+        "status":  "started",
+        "message": "ML analysis running in background. Results ready in ~10 seconds.",
+    })
+
 
 # ─── API: Time-series Chart Data ──────────────────────────────────────────────
 @app.route('/api/turbine/<int:turbine_id>/chart')
@@ -500,12 +541,21 @@ def api_ai_analyze(turbine_id):
     readings_text = fmt_readings(readings)
     events_text = fmt_events(events)
 
+    # Fetch latest ML insight and build context block for Claude
+    ml_context_block = ""
+    try:
+        ml_insight = MLInsight.query.filter_by(turbine_id=turbine_id).first()
+        if ml_insight and ml_insight.ml_summary:
+            ml_context_block = ml_insight.ml_summary + "\n\n"
+    except Exception as ml_exc:
+        print(f"[AI] Could not fetch ML insight: {ml_exc}")
+
     prompt = f"""You are an expert wind turbine condition monitoring engineer. Analyze the following sensor data and respond with ONLY valid JSON — no prose, no markdown fences.
 
 Turbine: {turbine.name} | {turbine.make} {turbine.model} | rated {turbine.rated_power_kw} kW | status: {turbine.status}
 Build: {turbine.build_date} | Last service: {turbine.last_service_date}
 
-Active alerts:
+{ml_context_block}Active alerts:
 {events_text}
 
 Recent sensor readings (last {len(readings)} minutes):

@@ -131,6 +131,78 @@
   </div>
 </div>
 
+<!-- ── ML Health Panel ────────────────────────────────────────────────── -->
+<div id="mlPanel" class="card p-4 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <h2 class="text-sm font-semibold text-white flex items-center gap-2">
+      <svg class="w-4 h-4 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+      </svg>
+      {% if lang=='da' %}ML Sundhedsanalyse{% else %}ML Health Analysis{% endif %}
+    </h2>
+    <div class="flex items-center gap-3">
+      <span id="mlComputedAt" class="text-xs text-slate-500"></span>
+      <button onclick="runMlAnalysis()" id="mlRunBtn"
+              class="flex items-center gap-1.5 px-3 py-1.5 bg-violet-800 hover:bg-violet-700 text-white text-xs rounded-lg transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        {% if lang=='da' %}Kør ML-analyse{% else %}Run ML Analysis{% endif %}
+      </button>
+    </div>
+  </div>
+
+  <!-- No-data state -->
+  <div id="mlNoData" class="text-sm text-slate-500 py-1">
+    {% if lang=='da' %}ML-analyse ikke kørt endnu — klik "Kør ML-analyse" for at starte.{% else %}ML analysis not yet run — click "Run ML Analysis" to start.{% endif %}
+  </div>
+
+  <!-- Loading state -->
+  <div id="mlLoading" class="hidden text-sm text-slate-400 py-1 animate-pulse">
+    {% if lang=='da' %}Beregner ML-analyse for alle møller...{% else %}Computing ML analysis across all turbines...{% endif %}
+  </div>
+
+  <!-- Results grid -->
+  <div id="mlResults" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-1">
+
+    <!-- 1. Health Score -->
+    <div class="flex flex-col items-center justify-center bg-slate-900/60 rounded-xl p-4 border border-slate-700/50">
+      <div class="text-xs text-slate-500 uppercase tracking-wide mb-2">
+        {% if lang=='da' %}ML Sundhedsscore{% else %}ML Health Score{% endif %}
+      </div>
+      <div id="mlHealthScore" class="text-5xl font-bold tabular-nums">—</div>
+      <div class="text-xs text-slate-500 mt-1">/ 100</div>
+    </div>
+
+    <!-- 2. Anomaly Flags -->
+    <div class="bg-slate-900/60 rounded-xl p-4 border border-slate-700/50">
+      <div class="text-xs text-slate-500 uppercase tracking-wide mb-2">
+        {% if lang=='da' %}Anomaliflag{% else %}Anomaly Flags{% endif %}
+      </div>
+      <div id="mlAnomalyList" class="space-y-1 text-xs leading-relaxed"></div>
+    </div>
+
+    <!-- 3. Trend Indicators -->
+    <div class="bg-slate-900/60 rounded-xl p-4 border border-slate-700/50">
+      <div class="text-xs text-slate-500 uppercase tracking-wide mb-2">
+        {% if lang=='da' %}Tendenser (24t){% else %}Trends (24h){% endif %}
+      </div>
+      <div id="mlTrendList" class="space-y-1 text-xs leading-relaxed"></div>
+    </div>
+
+    <!-- 4. Peer Ranking -->
+    <div class="bg-slate-900/60 rounded-xl p-4 border border-slate-700/50">
+      <div class="text-xs text-slate-500 uppercase tracking-wide mb-2">
+        {% if lang=='da' %}Peer-rangering{% else %}Peer Ranking{% endif %}
+      </div>
+      <div id="mlPeerList" class="space-y-1 text-xs leading-relaxed"></div>
+    </div>
+
+  </div>
+</div>
+
 <!-- ── Time-Series Charts ─────────────────────────────────────────────── -->
 <div id="chartsGrid" class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
 
@@ -990,5 +1062,178 @@ Promise.all([
 initTurbineMap({{ turbine.latitude }}, {{ turbine.longitude }});
 
 setInterval(loadLiveData, 60000);
+
+// ── ML Health Panel ───────────────────────────────────────────────────────────
+const ML_DEGRADATION = new Set([
+  'bearing_temp_c','gearbox_temp_c','generator_temp_c','oil_temp_c',
+  'vibration_gearbox_x','vibration_gearbox_y','vibration_gearbox_z',
+  'vibration_bearing','acoustic_level_db',
+]);
+
+async function loadMlInsights() {
+  try {
+    const r = await fetch(`/api/ml/insights/${TURBINE_ID}`);
+    const d = await r.json();
+    renderMlPanel(d);
+  } catch(e) {
+    console.warn('[ML] Failed to fetch insights:', e);
+  }
+}
+
+function renderMlPanel(d) {
+  document.getElementById('mlNoData').classList.add('hidden');
+  document.getElementById('mlLoading').classList.add('hidden');
+
+  if (!d || d.status === 'no_data') {
+    document.getElementById('mlNoData').classList.remove('hidden');
+    return;
+  }
+
+  document.getElementById('mlResults').classList.remove('hidden');
+
+  // ── Health Score ─────────────────────────────────────────────────────────
+  const score   = d.health_score;
+  const scoreEl = document.getElementById('mlHealthScore');
+  scoreEl.textContent = score != null ? Math.round(score) : '—';
+  scoreEl.className = 'text-5xl font-bold tabular-nums ' + (
+    score == null ? 'text-slate-400' :
+    score >= 75   ? 'text-green-400' :
+    score >= 50   ? 'text-amber-400' : 'text-red-400'
+  );
+
+  // ── Timestamp ────────────────────────────────────────────────────────────
+  if (d.computed_at) {
+    document.getElementById('mlComputedAt').textContent =
+      (LANG==='da' ? 'Sidst: ' : 'Last: ') + new Date(d.computed_at).toLocaleString();
+  }
+
+  // ── Anomaly Flags ─────────────────────────────────────────────────────────
+  const anomalies = d.anomaly_scores || {};
+  const flagged = Object.entries(anomalies)
+    .filter(([, z]) => z != null && Math.abs(z) > 2.5)
+    .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a));
+
+  const anomalyEl = document.getElementById('mlAnomalyList');
+  if (!flagged.length) {
+    anomalyEl.innerHTML =
+      `<span class="text-green-400">${LANG==='da' ? '✓ Ingen anomalier' : '✓ No anomalies'}</span>`;
+  } else {
+    anomalyEl.innerHTML = flagged.map(([metric, z]) => {
+      const sign  = z > 0 ? '+' : '';
+      const color = Math.abs(z) > 3.5 ? 'text-red-400' : 'text-amber-400';
+      const label = metric.replace(/_/g, ' ');
+      return `<div class="${color} flex items-center justify-between gap-2">
+        <span class="truncate">${label}</span>
+        <span class="font-mono shrink-0">${sign}${z.toFixed(1)}σ</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Trend Indicators ──────────────────────────────────────────────────────
+  const TREND_ICON  = { stable:'→', rising:'↗', rapid_rise:'⬆', falling:'↘' };
+  const TREND_COLOR = {
+    stable:'text-slate-400', rising:'text-amber-400',
+    rapid_rise:'text-red-400', falling:'text-sky-400',
+  };
+
+  const trends    = d.trends || {};
+  const nonStable = Object.entries(trends)
+    .filter(([, t]) => t && t.direction !== 'stable');
+
+  const trendEl = document.getElementById('mlTrendList');
+  if (!nonStable.length) {
+    trendEl.innerHTML =
+      `<span class="text-slate-400">${LANG==='da' ? '→ Alle stabile' : '→ All stable'}</span>`;
+  } else {
+    trendEl.innerHTML = nonStable.map(([metric, t]) => {
+      const icon  = TREND_ICON[t.direction]  || '→';
+      const color = TREND_COLOR[t.direction] || 'text-slate-400';
+      const dir   = t.direction.replace(/_/g, ' ');
+      return `<div class="${color} flex items-center gap-1.5">
+        <span class="shrink-0">${icon}</span>
+        <span class="truncate">${metric.replace(/_/g,' ')}</span>
+        <span class="text-slate-500 text-xs shrink-0">(${dir})</span>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Peer Ranking ──────────────────────────────────────────────────────────
+  const peerRanks = d.peer_ranks || {};
+  const peerBad   = Object.entries(peerRanks)
+    .filter(([m, pct]) => ML_DEGRADATION.has(m) && pct != null)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5);
+
+  const peerEl = document.getElementById('mlPeerList');
+  if (!peerBad.length) {
+    peerEl.innerHTML =
+      `<span class="text-slate-500">${LANG==='da' ? 'Ingen peer-data' : 'No peer data'}</span>`;
+  } else {
+    peerEl.innerHTML = peerBad.map(([metric, pct]) => {
+      const color = pct >= 90 ? 'text-red-400' : pct >= 75 ? 'text-amber-400' : 'text-slate-300';
+      return `<div class="${color} flex items-center justify-between gap-2">
+        <span class="truncate">${metric.replace(/_/g,' ')}</span>
+        <span class="font-mono shrink-0">${pct}th %</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+async function runMlAnalysis() {
+  const btn = document.getElementById('mlRunBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+  </svg> ${LANG==='da' ? 'Kører...' : 'Running...'}`;
+
+  document.getElementById('mlNoData').classList.add('hidden');
+  document.getElementById('mlResults').classList.add('hidden');
+  document.getElementById('mlLoading').classList.remove('hidden');
+
+  try {
+    const r = await fetch('/api/ml/run', { method: 'POST' });
+    const d = await r.json();
+
+    if (d.status === 'started') {
+      // Poll every 3 s, up to 15 attempts (~45 s)
+      let attempts = 0;
+      const poll = setInterval(async () => {
+        attempts++;
+        try {
+          const check   = await fetch(`/api/ml/insights/${TURBINE_ID}`);
+          const insight = await check.json();
+          if (insight.status === 'ok') {
+            clearInterval(poll);
+            renderMlPanel(insight);
+            _resetMlBtn();
+          } else if (attempts >= 15) {
+            clearInterval(poll);
+            document.getElementById('mlLoading').classList.add('hidden');
+            document.getElementById('mlNoData').classList.remove('hidden');
+            _resetMlBtn();
+          }
+        } catch(e) { /* network blip — keep polling */ }
+      }, 3000);
+    }
+  } catch(e) {
+    console.error('[ML] Run failed:', e);
+    document.getElementById('mlLoading').classList.add('hidden');
+    document.getElementById('mlNoData').classList.remove('hidden');
+    _resetMlBtn();
+  }
+}
+
+function _resetMlBtn() {
+  const btn = document.getElementById('mlRunBtn');
+  btn.disabled = false;
+  btn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+  </svg> ${LANG==='da' ? 'Kør ML-analyse' : 'Run ML Analysis'}`;
+}
+
+// Load ML insights on page init (alongside loadLiveData)
+loadMlInsights();
 </script>
 {% endblock %}

@@ -86,3 +86,18 @@ class TurbineEvent(db.Model):
     resolved = db.Column(db.Boolean, default=False)
     resolved_at = db.Column(db.DateTime, nullable=True)
     ai_analysis = db.Column(db.Text, nullable=True)  # Placeholder for AI-generated analysis
+
+
+class MLInsight(db.Model):
+    """Stores the latest ML analysis result for each turbine (one row per turbine, upserted)."""
+    __tablename__ = 'ml_insights'
+    id            = db.Column(db.Integer, primary_key=True)
+    turbine_id    = db.Column(db.Integer, db.ForeignKey('turbines.id'),
+                              nullable=False, index=True, unique=True)
+    computed_at   = db.Column(db.DateTime, nullable=False)
+    health_score  = db.Column(db.Float, nullable=True)    # 0-100; None = insufficient data
+    anomaly_scores = db.Column(db.Text, nullable=True)    # JSON: {metric: z_score}
+    trend_data     = db.Column(db.Text, nullable=True)    # JSON: {metric: {slope_per_hour, direction}}
+    peer_ranks     = db.Column(db.Text, nullable=True)    # JSON: {metric: percentile_int 0-100}
+    ml_summary     = db.Column(db.Text, nullable=True)    # Plain text block injected into Claude prompt
+    raw_results    = db.Column(db.Text, nullable=True)    # Full JSON debug blob
