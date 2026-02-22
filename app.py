@@ -198,21 +198,39 @@ def api_chart(turbine_id):
     col = getattr(SensorReading, metric)
 
     if rng == '24h':
-        # Raw minute data — no grouping needed
+        # Bucket into 5-minute averages to keep point count manageable (~288 pts)
         since = now - timedelta(hours=24)
-        rows = (SensorReading.query
-                .with_entities(SensorReading.timestamp, col)
+        if is_sqlite:
+            # SQLite: truncate to 5-min bucket via integer division on Unix epoch
+            bucket_expr_24 = func.strftime(
+                '%Y-%m-%dT%H:%M:00',
+                func.datetime(
+                    (func.strftime('%s', SensorReading.timestamp).cast(db.Integer) / 300) * 300,
+                    'unixepoch'
+                )
+            ).label('bucket')
+        else:
+            # PostgreSQL: date_trunc to 5-minute interval
+            from sqlalchemy import text as sa_text
+            bucket_expr_24 = func.date_trunc(
+                sa_text("'5 minutes'"), SensorReading.timestamp
+            ).label('bucket')
+
+        rows = (db.session.query(bucket_expr_24, func.avg(col).label('val'))
                 .filter(
                     SensorReading.turbine_id == turbine_id,
                     SensorReading.timestamp >= since,
                     SensorReading.resolution == 'min',
+                    col.isnot(None),
                 )
-                .order_by(SensorReading.timestamp.asc())
+                .group_by(bucket_expr_24)
+                .order_by(bucket_expr_24)
                 .all())
         return jsonify({
-            "metric": metric, "range": rng, "resolution": "min",
+            "metric": metric, "range": rng, "resolution": "5min",
             "data": [
-                {"t": r[0].isoformat(), "v": round(r[1], 3) if r[1] is not None else None}
+                {"t": r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]),
+                 "v": round(r[1], 3) if r[1] is not None else None}
                 for r in rows
             ]
         })

@@ -316,6 +316,12 @@ function chartOpts(range, extraScales) {
     animation: { duration: 300 },
     interaction: { mode: 'index', intersect: false },
     plugins: {
+      decimation: {
+        enabled: true,
+        algorithm: 'lttb',   // Largest-Triangle-Three-Buckets — best visual fidelity
+        samples: 120,         // Max ~120 visible points per dataset
+        threshold: 100,
+      },
       legend: {
         position: 'bottom',
         labels: {
@@ -385,6 +391,11 @@ async function fetchMetric(metric, range) {
   return (await r.json()).data;
 }
 
+// Helper: convert API data to {x, y} points, filtering nulls
+function pts(data) {
+  return data.filter(d => d.v !== null).map(d => ({ x: new Date(d.t), y: d.v }));
+}
+
 async function loadPowerWindChart(range) {
   const [pw, wd] = await Promise.all([fetchMetric('power_output_kw', range), fetchMetric('wind_speed_ms', range)]);
   const ctx = document.getElementById('chartPowerWind').getContext('2d');
@@ -392,8 +403,8 @@ async function loadPowerWindChart(range) {
   chartPW = new Chart(ctx, {
     data: {
       datasets: [
-        { type:'bar',  label: LANG==='da'?'Effekt (kW)':'Power (kW)', data: pw.map(d=>({x:new Date(d.t),y:d.v})), backgroundColor:'rgba(14,165,233,0.35)', borderColor:'rgba(14,165,233,0.8)', borderWidth:1, borderRadius:1, yAxisID:'y' },
-        { type:'line', label: LANG==='da'?'Vind (m/s)':'Wind (m/s)', data: wd.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'rgba(52,211,153,0.8)', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y2' },
+        { type:'bar',  label: LANG==='da'?'Effekt (kW)':'Power (kW)', data: pts(pw), backgroundColor:'rgba(14,165,233,0.35)', borderColor:'rgba(14,165,233,0.8)', borderWidth:1, borderRadius:1, yAxisID:'y' },
+        { type:'line', label: LANG==='da'?'Vind (m/s)':'Wind (m/s)', data: pts(wd), borderColor:'rgba(52,211,153,0.8)', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y2' },
       ]
     },
     options: chartOpts(range, { y:{ grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b',font:{size:10}}, position:'left' }, y2:{ grid:{display:false}, ticks:{color:'#34d399',font:{size:10}}, position:'right' } })
@@ -413,10 +424,10 @@ async function loadTempChart(range) {
     type:'line',
     data: {
       datasets: [
-        { label: LANG==='da'?'Leje':'Bearing',     data: bt.map(d=>({x:new Date(d.t),y:d.v})),  borderColor:'#f97316', pointRadius:0, borderWidth:1.5, tension:0.4 },
-        { label: LANG==='da'?'Gearkasse':'Gearbox', data: gt.map(d=>({x:new Date(d.t),y:d.v})),  borderColor:'#fb923c', pointRadius:0, borderWidth:1.5, tension:0.4 },
-        { label: 'Generator',                        data: gen.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#fbbf24', pointRadius:0, borderWidth:1.5, tension:0.4 },
-        { label: LANG==='da'?'Olie':'Oil',           data: ot.map(d=>({x:new Date(d.t),y:d.v})),  borderColor:'#a78bfa', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label: LANG==='da'?'Leje':'Bearing',     data: pts(bt),  borderColor:'#f97316', pointRadius:0, borderWidth:1.5, tension:0.3 },
+        { label: LANG==='da'?'Gearkasse':'Gearbox', data: pts(gt),  borderColor:'#fb923c', pointRadius:0, borderWidth:1.5, tension:0.3 },
+        { label: 'Generator',                        data: pts(gen), borderColor:'#fbbf24', pointRadius:0, borderWidth:1.5, tension:0.3 },
+        { label: LANG==='da'?'Olie':'Oil',           data: pts(ot),  borderColor:'#a78bfa', pointRadius:0, borderWidth:1.5, tension:0.3 },
       ]
     },
     options: chartOpts(range)
@@ -438,9 +449,9 @@ async function loadVibrationChart(range) {
     type:'line',
     data: {
       datasets: [
-        { label:'X', data: vx.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#ef4444', pointRadius:0, borderWidth:1.5, tension:0.4 },
-        { label:'Y', data: vy.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#a855f7', pointRadius:0, borderWidth:1.5, tension:0.4 },
-        { label:'Z', data: vz.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#3b82f6', pointRadius:0, borderWidth:1.5, tension:0.4 },
+        { label:'X', data: pts(vx), borderColor:'#ef4444', pointRadius:0, borderWidth:1.5, tension:0.3 },
+        { label:'Y', data: pts(vy), borderColor:'#a855f7', pointRadius:0, borderWidth:1.5, tension:0.3 },
+        { label:'Z', data: pts(vz), borderColor:'#3b82f6', pointRadius:0, borderWidth:1.5, tension:0.3 },
       ]
     },
     options: opts
@@ -458,8 +469,8 @@ async function loadRpmPitchChart(range) {
   chartRP = new Chart(ctx, {
     data: {
       datasets: [
-        { type:'line', label:'RPM',                           data: rpm.map(d=>({x:new Date(d.t),y:d.v})),   borderColor:'#a855f7', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y' },
-        { type:'line', label: LANG==='da'?'Pitch (°)':'Pitch (°)', data: pitch.map(d=>({x:new Date(d.t),y:d.v})), borderColor:'#06b6d4', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.4, yAxisID:'y2' },
+        { type:'line', label:'RPM',   data: pts(rpm),   borderColor:'#a855f7', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y' },
+        { type:'line', label: LANG==='da'?'Pitch (°)':'Pitch (°)', data: pts(pitch), borderColor:'#06b6d4', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y2' },
       ]
     },
     options: chartOpts(range, { y:{ grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#64748b',font:{size:10}}, position:'left' }, y2:{ grid:{display:false}, ticks:{color:'#06b6d4',font:{size:10}}, position:'right' } })
