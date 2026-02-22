@@ -77,10 +77,48 @@
   </div>
 
   <!-- Center nav (desktop) -->
-  <div class="hidden sm:flex items-center gap-1 text-sm font-medium text-slate-400">
-    <a href="{{ url_for('dashboard') }}" class="nav-link px-3 py-1.5 rounded-lg {% if request.endpoint=='dashboard' %}bg-slate-800 text-white{% endif %}">
-      {% if lang=='da' %}Oversigt{% else %}Overview{% endif %}
-    </a>
+  <div class="hidden sm:flex items-center gap-3 text-sm font-medium text-slate-400">
+    <!-- Static Dashboard label -->
+    <span class="px-3 py-1.5 text-white font-semibold tracking-wide">
+      {% if lang=='da' %}Dashboard{% else %}Dashboard{% endif %}
+    </span>
+
+    <!-- Farm selector dropdown -->
+    <div class="relative" id="farmDropdownWrapper">
+      <button onclick="document.getElementById('farmMenu').classList.toggle('hidden')"
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:border-sky-600 text-slate-200 hover:text-white transition-colors text-xs font-medium">
+        <!-- Wind farm icon -->
+        <svg class="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <span id="activeFarmLabel">Ringkøbing Fjord - Syd</span>
+        <svg class="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+
+      <!-- Dropdown panel -->
+      <div id="farmMenu" class="hidden absolute left-0 top-full mt-1 w-64 bg-slate-800 border border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+        <div class="px-3 py-2 text-xs text-slate-500 uppercase tracking-wider border-b border-slate-700">
+          {% if lang=='da' %}Vindparker{% else %}Wind Farms{% endif %}
+        </div>
+        <!-- Active farm -->
+        <button onclick="selectFarm('Ringkøbing Fjord - Syd')"
+                class="farm-option w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-slate-700 text-left transition-colors">
+          <span class="w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0"></span>
+          <span class="text-sm text-white font-medium">Ringkøbing Fjord - Syd</span>
+          <svg class="w-3.5 h-3.5 text-sky-400 ml-auto shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+          </svg>
+        </button>
+        <!-- Placeholder farms (greyed out, not yet connected) -->
+        <button disabled class="w-full flex items-center gap-2.5 px-3 py-2.5 text-left opacity-40 cursor-not-allowed">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-500 shrink-0"></span>
+          <span class="text-sm text-slate-400">{% if lang=='da' %}+ Tilføj vindpark{% else %}+ Add farm{% endif %}</span>
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Right side -->
@@ -130,9 +168,14 @@
 
 <!-- Mobile dropdown menu -->
 <div id="mobileMenu" class="hidden sm:hidden bg-slate-900 border-b border-slate-700 px-4 py-2 text-sm text-slate-300">
-  <a href="{{ url_for('dashboard') }}" class="block py-2 border-b border-slate-800">
-    {% if lang=='da' %}Oversigt{% else %}Overview{% endif %}
-  </a>
+  <div class="py-2 border-b border-slate-800 font-semibold text-white">Dashboard</div>
+  <div class="py-2 border-b border-slate-800 flex items-center gap-2 text-xs text-slate-400">
+    <svg class="w-3.5 h-3.5 text-sky-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+    </svg>
+    Ringkøbing Fjord - Syd
+  </div>
   <a href="{{ url_for('logout') }}" class="block py-2 text-red-400">
     {% if lang=='da' %}Log ud{% else %}Logout{% endif %}
   </a>
@@ -219,6 +262,21 @@ function statusBadge(s, lang='en') {
   return `<span class="px-2 py-0.5 rounded-full text-xs font-semibold badge-${s}">${text}</span>`;
 }
 const LANG = "{{ lang }}";
+
+// ── Farm Dropdown ─────────────────────────────────────────────────────────────
+function selectFarm(name) {
+  document.getElementById('activeFarmLabel').textContent = name;
+  document.getElementById('farmMenu').classList.add('hidden');
+  // future: navigate to the selected farm's dashboard
+}
+
+// Close farm dropdown when clicking outside
+document.addEventListener('click', function(e) {
+  const wrapper = document.getElementById('farmDropdownWrapper');
+  if (wrapper && !wrapper.contains(e.target)) {
+    document.getElementById('farmMenu').classList.add('hidden');
+  }
+});
 </script>
 
 {% block scripts %}{% endblock %}
