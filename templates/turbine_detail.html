@@ -476,54 +476,39 @@ const TURBINE_SVG_PATH_DETAIL = "M36,58.09a7.11,7.11,0,0,1,.72.41l.12.07a6,6,0,0
 window.gm_authFailure = function() {
   console.error('[Maps] Auth failure — check API key and HTTP referrer restrictions');
   const el = document.getElementById('turbineMap');
-  if (el) el.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px">' +
-    '<span style="font-size:24px">🗺️</span><span>Map unavailable — check API key</span></div>';
+  if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px"><span style="font-size:24px">🗺️</span><span>Map unavailable — check API key</span></div>';
 };
 
-function initTurbineMap(lat, lng) {
-  const script = document.createElement('script');
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_KEY}&libraries=marker&v=beta&loading=async&callback=_initDetailMap`;
-  script.async = true;
-  script.defer = true;
-  script.onerror = () => {
+async function initTurbineMap(lat, lng) {
+  // Bootstrap Google Maps using importLibrary pattern (v=weekly, no callback conflict)
+  (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;a.onerror=()=>n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a);d[q]=f}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})
+  ({key: window.GOOGLE_MAPS_KEY, v: "weekly"});
+
+  try {
+    const { Map, ColorScheme } = await google.maps.importLibrary('maps');
+    const { AdvancedMarkerElement } = await google.maps.importLibrary('marker');
+
+    const m = new Map(document.getElementById('turbineMap'), {
+      center: { lat, lng },
+      zoom: 13,
+      mapId: 'DEMO_MAP_ID',
+      colorScheme: ColorScheme.DARK,
+      mapTypeId: 'roadmap',
+      zoomControl: true,
+      streetViewControl: false,
+      mapTypeControl: false,
+      fullscreenControl: false,
+    });
+
+    const markerEl = document.createElement('div');
+    markerEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100.52 122.88" width="40" height="49" fill="#38bdf8"><path d="${TURBINE_SVG_PATH_DETAIL}"/></svg>`;
+    new AdvancedMarkerElement({ map: m, position: { lat, lng }, content: markerEl });
+  } catch(err) {
+    console.error('[Maps] Detail map init failed:', err);
     const el = document.getElementById('turbineMap');
-    if (el) el.innerHTML =
-      '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px">' +
-      '<span style="font-size:24px">🗺️</span><span>Map unavailable — script load failed</span></div>';
-  };
-  window._detailMapLat = lat;
-  window._detailMapLng = lng;
-  document.head.appendChild(script);
+    if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px"><span style="font-size:24px">🗺️</span><span>Map unavailable</span></div>';
+  }
 }
-
-window._initDetailMap = async function() {
-  const { Map, ColorScheme } = await google.maps.importLibrary('maps');
-  const lat = window._detailMapLat;
-  const lng = window._detailMapLng;
-
-  const m = new Map(document.getElementById('turbineMap'), {
-    center: { lat, lng },
-    zoom: 13,
-    mapId: 'DEMO_MAP_ID',        // required for AdvancedMarkerElement
-    colorScheme: ColorScheme.DARK,
-    mapTypeId: 'roadmap',
-    disableDefaultUI: false,
-    zoomControl: true,
-    streetViewControl: false,
-    mapTypeControl: false,
-    fullscreenControl: false,
-  });
-
-  const markerEl = document.createElement('div');
-  markerEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100.52 122.88" width="40" height="49" fill="#38bdf8"><path d="${TURBINE_SVG_PATH_DETAIL}"/></svg>`;
-
-  new google.maps.marker.AdvancedMarkerElement({
-    map: m,
-    position: { lat, lng },
-    content: markerEl,
-  });
-};
 
 // ── AI Analysis ──────────────────────────────────────────────────────────────
 const VERDICT_STYLE = {

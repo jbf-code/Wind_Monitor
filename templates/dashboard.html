@@ -235,54 +235,56 @@ let pendingMapData = null;
 // Auth failure handler — called by Google Maps if key is invalid/restricted
 window.gm_authFailure = function() {
   console.error('[Maps] Auth failure — check API key and HTTP referrer restrictions');
-  document.getElementById('map').innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px">' +
-    '<span style="font-size:24px">🗺️</span><span>Map unavailable — check Google Maps API key</span></div>';
+  const el = document.getElementById('map');
+  if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px"><span style="font-size:24px">🗺️</span><span>Map unavailable — check Google Maps API key</span></div>';
 };
 
 async function renderMap(data) {
   pendingMapData = data;
   if (!gmapsLoaded) {
     gmapsLoaded = true;
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${window.GOOGLE_MAPS_KEY}&libraries=marker&v=beta&loading=async&callback=initGoogleMap`;
-    script.async = true;
-    script.defer = true;
-    script.onerror = () => {
-      console.error('[Maps] Failed to load Google Maps script');
-      document.getElementById('map').innerHTML =
-        '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px">' +
-        '<span style="font-size:24px">🗺️</span><span>Map unavailable — script load failed</span></div>';
-    };
-    document.head.appendChild(script);
+    // Use importLibrary bootstrap pattern (no callback, no v=beta)
+    (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;a.onerror=()=>n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a);d[q]=f}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})
+    ({key: window.GOOGLE_MAPS_KEY, v: "weekly"});
+    _initFleetMap();
   } else if (mapInstance) {
     _placeMarkers(data);
   }
 }
 
-window.initGoogleMap = async function() {
-  const { Map, ColorScheme } = await google.maps.importLibrary('maps');
-  const data = pendingMapData || [];
+let AdvancedMarkerElement = null;
 
-  // Compute centre from turbine positions
-  const avgLat = data.reduce((s,t)=>s+t.lat,0)/data.length;
-  const avgLng = data.reduce((s,t)=>s+t.lng,0)/data.length;
+async function _initFleetMap() {
+  try {
+    const { Map, ColorScheme } = await google.maps.importLibrary('maps');
+    const markerLib = await google.maps.importLibrary('marker');
+    AdvancedMarkerElement = markerLib.AdvancedMarkerElement;
 
-  mapInstance = new Map(document.getElementById('map'), {
-    center: { lat: avgLat, lng: avgLng },
-    zoom: 12,
-    mapId: 'DEMO_MAP_ID',        // required for AdvancedMarkerElement
-    colorScheme: ColorScheme.DARK,
-    mapTypeId: 'roadmap',
-    disableDefaultUI: false,
-    zoomControl: true,
-    streetViewControl: false,
-    mapTypeControl: false,
-    fullscreenControl: false,
-  });
+    const data = pendingMapData || [];
+    if (!data.length) return;
 
-  _placeMarkers(data);
-};
+    const avgLat = data.reduce((s,t) => s + t.lat, 0) / data.length;
+    const avgLng = data.reduce((s,t) => s + t.lng, 0) / data.length;
+
+    mapInstance = new Map(document.getElementById('map'), {
+      center: { lat: avgLat, lng: avgLng },
+      zoom: 12,
+      mapId: 'DEMO_MAP_ID',
+      colorScheme: ColorScheme.DARK,
+      mapTypeId: 'roadmap',
+      zoomControl: true,
+      streetViewControl: false,
+      mapTypeControl: false,
+      fullscreenControl: false,
+    });
+
+    _placeMarkers(data);
+  } catch(err) {
+    console.error('[Maps] Init failed:', err);
+    const el = document.getElementById('map');
+    if (el) el.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;font-size:13px;flex-direction:column;gap:8px"><span style="font-size:24px">🗺️</span><span>Map unavailable</span></div>';
+  }
+}
 
 function _placeMarkers(data) {
   const colMap = { operational:'#22c55e', warning:'#f59e0b', fault:'#ef4444', offline:'#6b7280' };
@@ -297,7 +299,7 @@ function _placeMarkers(data) {
     const col = colMap[t.status] || '#6b7280';
     const markerEl = makeTurbineSvgEl(col);
 
-    const marker = new google.maps.marker.AdvancedMarkerElement({
+    const marker = new AdvancedMarkerElement({
       map: mapInstance,
       position: { lat: t.lat, lng: t.lng },
       content: markerEl,
