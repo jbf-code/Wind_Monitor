@@ -525,7 +525,7 @@ Respond with this exact JSON structure:
         client = Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=1024,
+            max_tokens=2048,
             messages=[{"role": "user", "content": prompt}]
         )
         raw_text = response.content[0].text.strip()
@@ -581,29 +581,11 @@ Respond with this exact JSON structure:
             db.session.commit()
             event_id = ai_event.id
         except Exception as db_exc:
+            import traceback as _tb
             db.session.rollback()
             db_error = str(db_exc)
-            print(f"[AI] DB save failed (attempt 1): {db_error}")
-            # Fallback: try saving without ai_analysis in case column doesn't exist yet
-            try:
-                from sqlalchemy import text as _sat
-                db.session.execute(_sat(
-                    "INSERT INTO turbine_events "
-                    "(turbine_id, timestamp, severity, category, code, message_en, message_da, resolved) "
-                    "VALUES (:tid, :ts, 'info', 'AI Analysis', 'AI Diagnosis', :msg, :msg, false)"
-                ), {"tid": turbine_id, "ts": datetime.utcnow(), "msg": summary_text[:500]})
-                db.session.commit()
-                # Fetch the id we just inserted
-                row = db.session.execute(_sat(
-                    "SELECT id FROM turbine_events WHERE turbine_id=:tid AND category='AI Analysis' "
-                    "ORDER BY timestamp DESC LIMIT 1"
-                ), {"tid": turbine_id}).fetchone()
-                event_id = row[0] if row else None
-                db_error = f"ai_analysis column missing — saved without it. Original: {db_error[:200]}"
-            except Exception as db_exc2:
-                db.session.rollback()
-                db_error = f"Both save attempts failed. Err1: {db_error[:150]} | Err2: {str(db_exc2)[:150]}"
-                print(f"[AI] DB save fallback also failed: {db_exc2}")
+            print(f"[AI] DB save failed: {db_error}")
+            print(_tb.format_exc())
 
         return jsonify({
             "status": "ok",
