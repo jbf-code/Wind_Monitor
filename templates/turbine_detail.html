@@ -482,14 +482,15 @@ function initTurbineMap(lat, lng) {
 }
 
 window._initDetailMap = async function() {
-  const { Map } = await google.maps.importLibrary('maps');
+  const { Map, ColorScheme } = await google.maps.importLibrary('maps');
   const lat = window._detailMapLat;
   const lng = window._detailMapLng;
 
   const m = new Map(document.getElementById('turbineMap'), {
     center: { lat, lng },
     zoom: 13,
-    colorScheme: 'DARK',
+    mapId: 'DEMO_MAP_ID',        // required for AdvancedMarkerElement
+    colorScheme: ColorScheme.DARK,
     mapTypeId: 'roadmap',
     disableDefaultUI: false,
     zoomControl: true,

@@ -246,7 +246,7 @@ async function renderMap(data) {
 }
 
 window.initGoogleMap = async function() {
-  const { Map } = await google.maps.importLibrary('maps');
+  const { Map, ColorScheme } = await google.maps.importLibrary('maps');
   const data = pendingMapData || [];
 
   // Compute centre from turbine positions
@@ -256,14 +256,14 @@ window.initGoogleMap = async function() {
   mapInstance = new Map(document.getElementById('map'), {
     center: { lat: avgLat, lng: avgLng },
     zoom: 12,
-    colorScheme: 'DARK',
+    mapId: 'DEMO_MAP_ID',        // required for AdvancedMarkerElement
+    colorScheme: ColorScheme.DARK,
     mapTypeId: 'roadmap',
     disableDefaultUI: false,
     zoomControl: true,
     streetViewControl: false,
     mapTypeControl: false,
     fullscreenControl: false,
-    styles: [],   // native dark via colorScheme
   });
 
   _placeMarkers(data);
