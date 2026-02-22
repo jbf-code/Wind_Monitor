@@ -256,7 +256,7 @@ let AdvancedMarkerElement = null;
 
 async function _initFleetMap() {
   try {
-    const { Map, ColorScheme } = await google.maps.importLibrary('maps');
+    const { Map } = await google.maps.importLibrary('maps');
     const markerLib = await google.maps.importLibrary('marker');
     AdvancedMarkerElement = markerLib.AdvancedMarkerElement;
 
@@ -270,7 +270,7 @@ async function _initFleetMap() {
       center: { lat: avgLat, lng: avgLng },
       zoom: 12,
       mapId: 'DEMO_MAP_ID',
-      colorScheme: ColorScheme.DARK,
+      colorScheme: 'DARK',
       mapTypeId: 'roadmap',
       zoomControl: true,
       streetViewControl: false,

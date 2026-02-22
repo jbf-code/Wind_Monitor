@@ -485,14 +485,14 @@ async function initTurbineMap(lat, lng) {
   ({key: window.GOOGLE_MAPS_KEY, v: "weekly"});
 
   try {
-    const { Map, ColorScheme } = await google.maps.importLibrary('maps');
+    const { Map } = await google.maps.importLibrary('maps');
     const { AdvancedMarkerElement } = await google.maps.importLibrary('marker');
 
     const m = new Map(document.getElementById('turbineMap'), {
       center: { lat, lng },
       zoom: 13,
       mapId: 'DEMO_MAP_ID',
-      colorScheme: ColorScheme.DARK,
+      colorScheme: 'DARK',
       mapTypeId: 'roadmap',
       zoomControl: true,
       streetViewControl: false,
