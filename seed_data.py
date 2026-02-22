@@ -89,7 +89,12 @@ def generate_reading(turbine_id, rated_kw, ts, hour_of_day, issue=None, resoluti
     rpm = max(0, (power / rated_kw) * 15.0 + random.gauss(0, 0.3)) if power > 0 else 0
     pitch = max(-2, min(90, 15 - wind * 1.2 + random.gauss(0, 0.5))) if power > 0 else 90
 
-    ambient = random.gauss(5, 4)  # Danish Feb avg ~5°C
+    outdoor_temp = random.gauss(5, 4)  # Danish Feb avg ~5°C (used for mechanical temps)
+    # Turbine housing temp: electronics + heat dissipation in enclosed box.
+    # Baseline ~30°C at idle, rises ~10°C under full load, with small noise.
+    load_frac = min(1.0, power / rated_kw) if power > 0 else 0.0
+    housing_temp = 30.0 + load_frac * 10.0 + random.gauss(0, 2.5)
+    housing_temp = round(max(18.0, min(68.0, housing_temp)), 1)
 
     return SensorReading(
         turbine_id=turbine_id,
@@ -107,12 +112,12 @@ def generate_reading(turbine_id, rated_kw, ts, hour_of_day, issue=None, resoluti
         pitch_angle_deg=round(pitch, 2),
         rotor_rpm=round(rpm, 2),
 
-        nacelle_temp_c=round(ambient + random.uniform(5, 15), 1),
-        bearing_temp_c=round(ambient + 30 + bearing_temp_extra + random.gauss(0, 1.5), 1),
-        gearbox_temp_c=round(ambient + 40 + random.gauss(0, 2), 1),
-        generator_temp_c=round(ambient + 45 + random.gauss(0, 2), 1),
-        oil_temp_c=round(ambient + 35 + random.gauss(0, 1.5), 1),
-        ambient_temp_c=round(ambient, 1),
+        nacelle_temp_c=round(outdoor_temp + random.uniform(5, 15), 1),
+        bearing_temp_c=round(outdoor_temp + 30 + bearing_temp_extra + random.gauss(0, 1.5), 1),
+        gearbox_temp_c=round(outdoor_temp + 40 + random.gauss(0, 2), 1),
+        generator_temp_c=round(outdoor_temp + 45 + random.gauss(0, 2), 1),
+        oil_temp_c=round(outdoor_temp + 35 + random.gauss(0, 1.5), 1),
+        ambient_temp_c=housing_temp,
         nacelle_humidity_pct=round(random.uniform(30, 70), 1),
 
         vibration_gearbox_x=round(max(0, 0.05 + gearbox_vib_extra + random.gauss(0, 0.01)), 4),

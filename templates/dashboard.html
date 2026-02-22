@@ -226,7 +226,7 @@ function renderTurbineGrid(data) {
     if (mode === 'internal' || mode === 'all') {
       cells += `<div><span class="text-slate-500">${LANG==='da'?'Vib':'Vib'}</span><br><span class="text-red-300">${vib}g</span></div>`;
       cells += `<div><span class="text-slate-500">${LANG==='da'?'Akustik':'Acoustic'}</span><br><span class="text-teal-300">${acu} dB</span></div>`;
-      cells += `<div><span class="text-slate-500">${LANG==='da'?'Omgivelsestem.':'Ambient'}</span><br><span class="text-cyan-300">${atp}°C</span></div>`;
+      cells += `<div><span class="text-slate-500">${LANG==='da'?'Kabinettmp.':'Housing'}</span><br><span class="text-cyan-300">${atp}°C</span></div>`;
     }
 
     const modeBadge = mode !== 'all'

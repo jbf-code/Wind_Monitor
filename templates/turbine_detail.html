@@ -74,11 +74,11 @@
 <!-- ── Live Gauges ────────────────────────────────────────────────────── -->
 <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 mb-4" id="gaugeRow">
   <!-- Power gauge — EXTERNAL (X: turbine's own power meter, outside the monitoring box) -->
-  <div class="sm:col-span-2 card px-4 pt-3 pb-4 flex flex-col items-center gap-1" data-sensor="external">
+  <div class="card px-4 pt-3 pb-4 flex flex-col items-center gap-1" data-sensor="external">
     <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Effekt{% else %}Power Output{% endif %}</div>
-    <canvas id="gaugePower" width="140" height="80"></canvas>
-    <div id="valPower" class="text-xl font-bold text-sky-400 -mt-1">—</div>
-    <div class="text-xs text-slate-500">kW / {{ turbine.rated_power_kw|int }} kW</div>
+    <canvas id="gaugePower" width="90" height="52"></canvas>
+    <div id="valPower" class="text-lg font-bold text-sky-400 -mt-1">—</div>
+    <div class="text-xs text-slate-500">kW</div>
   </div>
   <!-- Wind speed — EXTERNAL (X: anemometer outside the box) -->
   <div class="card px-4 pt-3 pb-4 flex flex-col items-center gap-1" data-sensor="external">
@@ -122,9 +122,9 @@
     <div id="valAcoustic" class="text-lg font-bold text-teal-400 -mt-1">—</div>
     <div class="text-xs text-slate-500">dB</div>
   </div>
-  <!-- Ambient Temp — INTERNAL (O: ambient sensor inside the monitoring box) -->
+  <!-- Housing Temp — INTERNAL (O: air temp sensor inside the monitoring box) -->
   <div class="card px-4 pt-3 pb-4 flex flex-col items-center gap-1" data-sensor="internal">
-    <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Udetemperatur{% else %}Ambient Temp{% endif %}</div>
+    <div class="text-xs text-slate-400 uppercase tracking-wide">{% if lang=='da' %}Kabinettemp.{% else %}Housing Temp{% endif %}</div>
     <canvas id="gaugeAmbient" width="90" height="52"></canvas>
     <div id="valAmbient" class="text-lg font-bold text-cyan-400 -mt-1">—</div>
     <div class="text-xs text-slate-500">°C</div>
@@ -667,7 +667,7 @@ async function loadLiveData() {
   drawGauge('gaugeGearboxTemp', lt.gearbox_temp || 0, 100,      '#fb923c', {warning:75,  critical:90});
   drawGauge('gaugeVibX',        lt.vib_x        || 0, 1.0,      '#ef4444', {warning:0.3, critical:0.5});
   drawGauge('gaugeAcoustic',    lt.acoustic_db  || 0, 100,      '#2dd4bf', null);
-  drawGauge('gaugeAmbient',     lt.ambient_temp || 0, 40,       '#22d3ee', null);
+  drawGauge('gaugeAmbient',     lt.ambient_temp || 0, 70,       '#22d3ee', {warning:50, critical:60});
 
   // Render events
   renderEvents(d.events);
