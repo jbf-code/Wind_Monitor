@@ -384,6 +384,26 @@ def api_debug_ai_events():
                     "summary": e.message_en[:120]} for e in events]
     })
 
+@app.route('/api/debug/schema')
+@login_required
+def api_debug_schema():
+    """Debug: inspect turbine_events columns in live DB."""
+    from sqlalchemy import text as _t
+    is_sqlite = 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
+    try:
+        if is_sqlite:
+            rows = db.session.execute(_t("PRAGMA table_info(turbine_events)")).fetchall()
+            cols = [r[1] for r in rows]
+        else:
+            rows = db.session.execute(_t(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name='turbine_events' ORDER BY ordinal_position"
+            )).fetchall()
+            cols = [r[0] for r in rows]
+    except Exception as e:
+        return jsonify({"error": str(e)})
+    return jsonify({"columns": cols, "has_ai_analysis": "ai_analysis" in cols})
+
 @app.route('/api/debug/data')
 @login_required
 def api_debug_data():
@@ -504,7 +524,7 @@ Respond with this exact JSON structure:
         from anthropic import Anthropic
         client = Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-3-5-sonnet-20241022",
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}]
         )
@@ -563,7 +583,27 @@ Respond with this exact JSON structure:
         except Exception as db_exc:
             db.session.rollback()
             db_error = str(db_exc)
-            print(f"[AI] DB save failed: {db_error}")
+            print(f"[AI] DB save failed (attempt 1): {db_error}")
+            # Fallback: try saving without ai_analysis in case column doesn't exist yet
+            try:
+                from sqlalchemy import text as _sat
+                db.session.execute(_sat(
+                    "INSERT INTO turbine_events "
+                    "(turbine_id, timestamp, severity, category, code, message_en, message_da, resolved) "
+                    "VALUES (:tid, :ts, 'info', 'AI Analysis', 'AI Diagnosis', :msg, :msg, false)"
+                ), {"tid": turbine_id, "ts": datetime.utcnow(), "msg": summary_text[:500]})
+                db.session.commit()
+                # Fetch the id we just inserted
+                row = db.session.execute(_sat(
+                    "SELECT id FROM turbine_events WHERE turbine_id=:tid AND category='AI Analysis' "
+                    "ORDER BY timestamp DESC LIMIT 1"
+                ), {"tid": turbine_id}).fetchone()
+                event_id = row[0] if row else None
+                db_error = f"ai_analysis column missing — saved without it. Original: {db_error[:200]}"
+            except Exception as db_exc2:
+                db.session.rollback()
+                db_error = f"Both save attempts failed. Err1: {db_error[:150]} | Err2: {str(db_exc2)[:150]}"
+                print(f"[AI] DB save fallback also failed: {db_exc2}")
 
         return jsonify({
             "status": "ok",
