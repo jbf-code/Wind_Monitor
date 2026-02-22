@@ -26,6 +26,11 @@ elif _db_url.startswith('postgresql://'):
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 print(f"[DB] Using: {'PostgreSQL' if 'postgresql' in _db_url else 'SQLite (ephemeral — data lost on redeploy!)'}")
+try:
+    import anthropic as _anthropic_check
+    print(f"[AI] anthropic SDK version: {_anthropic_check.__version__}")
+except Exception as _e:
+    print(f"[AI] Could not determine anthropic SDK version: {_e}")
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_size': 5,
@@ -527,7 +532,7 @@ Respond with this exact JSON structure:
         from anthropic import Anthropic
         client = Anthropic(api_key=ANTHROPIC_API_KEY)
         response = client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-sonnet-4-6",
             max_tokens=2048,
             messages=[{"role": "user", "content": prompt}]
         )
