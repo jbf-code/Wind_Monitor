@@ -56,6 +56,27 @@ def init_and_seed():
     global _seeded
     with app.app_context():
         db.create_all()
+
+        # ── Schema migrations (safe to run on every start) ────────────────────
+        # Add columns that may not exist on older deployed databases.
+        from sqlalchemy import text as _sa_text
+        _is_sqlite = 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
+        try:
+            if _is_sqlite:
+                db.session.execute(_sa_text(
+                    "ALTER TABLE turbine_events ADD COLUMN ai_analysis TEXT"
+                ))
+            else:
+                db.session.execute(_sa_text(
+                    "ALTER TABLE turbine_events ADD COLUMN IF NOT EXISTS ai_analysis TEXT"
+                ))
+            db.session.commit()
+            print("[DB] Migration: ai_analysis column ensured.")
+        except Exception as _e:
+            db.session.rollback()
+            # Column already exists — this is the normal case after first run
+            print(f"[DB] Migration note: {_e}")
+
         from database import Turbine
         if Turbine.query.count() == 0:
             print("Starting database seed (background)...")
@@ -514,6 +535,7 @@ Respond with this exact JSON structure:
             "structured": structured,
             "raw": raw_text,
             "event_id": event_id,
+            "db_error": db_error,  # None on success; non-null means event was NOT saved
         })
     except Exception as e:
         db.session.rollback()
