@@ -194,12 +194,13 @@ def api_chart(turbine_id):
     Query params:
       metric  - field name in SensorReading
       range   - '24h' | '7d' | '21d' (default '24h')
-
-    Strategy:
-      24h  → raw minute rows (no grouping needed)
-      7d   → group by hour, query both resolutions (boundary between hour/min data)
-      21d  → group by hour, query both resolutions
+      res     - resolution bucket in minutes (default: 15 for 24h, 60 for 7d/21d)
+                24h valid values: 5, 10, 15
+                7d valid values: 360 (6h), 720 (12h), 1440 (24h)
+                21d valid values: 720 (12h), 1440 (24h), 2880 (48h)
     """
+    from sqlalchemy import text as sa_text
+
     metric = request.args.get('metric', 'power_output_kw')
     rng    = request.args.get('range', '24h')
 
@@ -214,19 +215,32 @@ def api_chart(turbine_id):
     if metric not in allowed_metrics:
         abort(400, f"Invalid metric: {metric}")
 
+    # Validate resolution — different allowed values per range
+    VALID_RES = {
+        '24h': {5, 10, 15},
+        '7d':  {360, 720, 1440},
+        '21d': {720, 1440, 2880},
+    }
+    defaults = {'24h': 15, '7d': 360, '21d': 1440}
+    try:
+        res_min = int(request.args.get('res', defaults.get(rng, 15)))
+    except ValueError:
+        res_min = defaults.get(rng, 15)
+    if res_min not in VALID_RES.get(rng, {res_min}):
+        res_min = defaults.get(rng, 15)
+
+    bucket_secs = res_min * 60
     now = datetime.utcnow()
     is_sqlite = 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']
     col = getattr(SensorReading, metric)
 
     if rng == '24h':
-        # Bucket into 15-minute averages (~96 pts over 24h) via raw SQL (works on both DBs)
         since = now - timedelta(hours=24)
-        from sqlalchemy import text as sa_text
         if is_sqlite:
             sql = sa_text(f"""
                 SELECT
                     strftime('%Y-%m-%dT%H:%M:00',
-                        datetime((strftime('%s', timestamp) / 900) * 900, 'unixepoch')
+                        datetime((strftime('%s', timestamp) / {bucket_secs}) * {bucket_secs}, 'unixepoch')
                     ) AS bucket,
                     AVG({metric}) AS val
                 FROM sensor_readings
@@ -241,7 +255,7 @@ def api_chart(turbine_id):
             sql = sa_text(f"""
                 SELECT
                     to_timestamp(
-                        (EXTRACT(EPOCH FROM timestamp)::bigint / 900) * 900
+                        (EXTRACT(EPOCH FROM timestamp)::bigint / {bucket_secs}) * {bucket_secs}
                     ) AS bucket,
                     AVG({metric}) AS val
                 FROM sensor_readings
@@ -254,7 +268,7 @@ def api_chart(turbine_id):
             """)
         rows = db.session.execute(sql, {"tid": turbine_id, "since": since}).fetchall()
         return jsonify({
-            "metric": metric, "range": rng, "resolution": "15min",
+            "metric": metric, "range": rng, "resolution": f"{res_min}min",
             "data": [
                 {"t": r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]),
                  "v": round(float(r[1]), 3) if r[1] is not None else None}
@@ -262,29 +276,45 @@ def api_chart(turbine_id):
             ]
         })
 
-    # 7d / 21d — group into hourly buckets, query both resolutions
+    # 7d / 21d — group by chosen bucket size, raw SQL for reliability
     since = now - timedelta(days=7 if rng == '7d' else 21)
     if is_sqlite:
-        bucket_expr = func.strftime('%Y-%m-%dT%H:00:00', SensorReading.timestamp).label('bucket')
+        sql = sa_text(f"""
+            SELECT
+                strftime('%Y-%m-%dT%H:%M:00',
+                    datetime((strftime('%s', timestamp) / {bucket_secs}) * {bucket_secs}, 'unixepoch')
+                ) AS bucket,
+                AVG({metric}) AS val
+            FROM sensor_readings
+            WHERE turbine_id = :tid
+              AND timestamp >= :since
+              AND resolution IN ('min','hour')
+              AND {metric} IS NOT NULL
+            GROUP BY bucket
+            ORDER BY bucket
+        """)
     else:
-        bucket_expr = func.date_trunc('hour', SensorReading.timestamp).label('bucket')
-
-    rows = (db.session.query(bucket_expr, func.avg(col).label('val'))
-            .filter(
-                SensorReading.turbine_id == turbine_id,
-                SensorReading.timestamp >= since,
-                SensorReading.resolution.in_(['min', 'hour']),
-                col.isnot(None),
-            )
-            .group_by(bucket_expr)
-            .order_by(bucket_expr)
-            .all())
-
+        sql = sa_text(f"""
+            SELECT
+                to_timestamp(
+                    (EXTRACT(EPOCH FROM timestamp)::bigint / {bucket_secs}) * {bucket_secs}
+                ) AS bucket,
+                AVG({metric}) AS val
+            FROM sensor_readings
+            WHERE turbine_id = :tid
+              AND timestamp >= :since
+              AND resolution IN ('min','hour')
+              AND {metric} IS NOT NULL
+            GROUP BY bucket
+            ORDER BY bucket
+        """)
+    rows = db.session.execute(sql, {"tid": turbine_id, "since": since}).fetchall()
+    res_label = f"{res_min}min" if res_min < 60 else f"{res_min//60}h"
     return jsonify({
-        "metric": metric, "range": rng, "resolution": "hour",
+        "metric": metric, "range": rng, "resolution": res_label,
         "data": [
             {"t": r[0].isoformat() if hasattr(r[0], 'isoformat') else str(r[0]),
-             "v": round(r[1], 3) if r[1] is not None else None}
+             "v": round(float(r[1]), 3) if r[1] is not None else None}
             for r in rows
         ]
     })
