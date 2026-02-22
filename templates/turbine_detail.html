@@ -197,6 +197,27 @@
     <div class="chart-wrap" style="height:180px;"><canvas id="chartVibration"></canvas></div>
   </div>
 
+  <!-- Acoustics & Housing Temp — INTERNAL (O: microphone + temp sensor inside the monitoring box) -->
+  <div id="card-acoustic" class="card p-4 chart-card" data-sensor="internal">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-white">{% if lang=='da' %}Lydniveau & Kabinettemp.{% else %}Acoustics & Housing Temp{% endif %}</h2>
+      <div class="flex items-center gap-2 text-xs">
+        <div class="flex gap-1">
+          <button onclick="setRange('24h')" id="range5-24h" class="range5-btn px-2 py-0.5 rounded bg-sky-700 text-white">24h</button>
+          <button onclick="setRange('7d')"  id="range5-7d"  class="range5-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">7d</button>
+          <button onclick="setRange('21d')" id="range5-21d" class="range5-btn px-2 py-0.5 rounded text-slate-400 hover:text-white">21d</button>
+        </div>
+        <div class="w-px h-3 bg-slate-700"></div>
+        <div id="res-acoustic" class="flex gap-1"></div>
+        <button onclick="toggleExpand('card-acoustic', 'chartAcousticHousing')" class="expand-btn text-slate-400 hover:text-white p-0.5 rounded" title="Expand">
+          <svg class="w-4 h-4 icon-expand" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5"/></svg>
+          <svg class="w-4 h-4 icon-collapse hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="chart-wrap" style="height:180px;"><canvas id="chartAcousticHousing"></canvas></div>
+  </div>
+
   <!-- RPM + Pitch — EXTERNAL (X: rotor encoder outside the monitoring box) -->
   <div id="card-rpm" class="card p-4 chart-card" data-sensor="external">
     <div class="flex items-center justify-between mb-3">
@@ -433,7 +454,7 @@ function chartOpts(range, extraScales) {
   return base;
 }
 
-let chartPW, chartT, chartV, chartRP;
+let chartPW, chartT, chartV, chartRP, chartAH;
 let currentRange = '24h';
 
 // Resolution options per range (minutes); default is first entry
@@ -478,7 +499,7 @@ function renderResBtns(containerId, range) {
 function setRes(val) {
   currentRes[currentRange] = val;
   // Update button highlights across all 4 res containers
-  ['res-pw','res-temp','res-vib','res-rpm'].forEach(cid => {
+  ['res-pw','res-temp','res-vib','res-acoustic','res-rpm'].forEach(cid => {
     const opts = RES_OPTIONS[currentRange] || [];
     opts.forEach(o => {
       const btn = document.getElementById(`res-${cid}-${o.val}`);
@@ -493,6 +514,7 @@ function setRes(val) {
     loadPowerWindChart(currentRange),
     loadTempChart(currentRange),
     loadVibrationChart(currentRange),
+    loadAcousticHousingChart(currentRange),
     loadRpmPitchChart(currentRange),
   ]).then(() => applyDetailSensorMode(getSensorMode()));
 }
@@ -583,12 +605,35 @@ async function loadRpmPitchChart(range) {
   });
 }
 
+async function loadAcousticHousingChart(range) {
+  range = range || currentRange;
+  const [ac, ht] = await Promise.all([
+    fetchMetric('acoustic_level_db', range),
+    fetchMetric('ambient_temp_c', range),
+  ]);
+  const ctx = document.getElementById('chartAcousticHousing').getContext('2d');
+  if (chartAH) chartAH.destroy();
+  chartAH = new Chart(ctx, {
+    data: {
+      datasets: [
+        { type:'line', label: LANG==='da'?'Lydniveau (dB)':'Acoustic (dB)', data: pts(ac), borderColor:'#2dd4bf', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y' },
+        { type:'line', label: LANG==='da'?'Kabinettemp. (°C)':'Housing Temp (°C)', data: pts(ht), borderColor:'#22d3ee', backgroundColor:'transparent', pointRadius:0, borderWidth:1.5, tension:0.3, yAxisID:'y2' },
+      ]
+    },
+    options: chartOpts(range, {
+      y:  { grid:{color:'rgba(51,65,85,0.5)'}, ticks:{color:'#2dd4bf',font:{size:10}}, position:'left' },
+      y2: { grid:{display:false}, ticks:{color:'#22d3ee',font:{size:10}}, position:'right' },
+    })
+  });
+}
+
 // ── Chart expand / collapse ───────────────────────────────────────────────────
 const CHART_RELOAD = {
-  'card-pw':   () => loadPowerWindChart(currentRange),
-  'card-temp': () => loadTempChart(currentRange),
-  'card-vib':  () => loadVibrationChart(currentRange),
-  'card-rpm':  () => loadRpmPitchChart(currentRange),
+  'card-pw':       () => loadPowerWindChart(currentRange),
+  'card-temp':     () => loadTempChart(currentRange),
+  'card-vib':      () => loadVibrationChart(currentRange),
+  'card-acoustic': () => loadAcousticHousingChart(currentRange),
+  'card-rpm':      () => loadRpmPitchChart(currentRange),
 };
 
 function toggleExpand(cardId, canvasId) {
@@ -627,19 +672,20 @@ function setRange(r) {
   const defaults = { '24h': 5, '7d': 360, '21d': 720 };
   currentRes[r] = defaults[r];
 
-  [['range-btn','range'], ['range2-btn','range2'], ['range3-btn','range3'], ['range4-btn','range4']].forEach(([cls, prefix]) => {
+  [['range-btn','range'], ['range2-btn','range2'], ['range3-btn','range3'], ['range4-btn','range4'], ['range5-btn','range5']].forEach(([cls, prefix]) => {
     document.querySelectorAll('.'+cls).forEach(b => b.className = cls+' px-2 py-0.5 rounded text-slate-400 hover:text-white');
     const btn = document.getElementById(prefix+'-'+r);
     if (btn) btn.className = cls+' px-2 py-0.5 rounded bg-sky-700 text-white';
   });
 
   // Re-render resolution buttons for new range
-  ['res-pw','res-temp','res-vib','res-rpm'].forEach(cid => renderResBtns(cid, r));
+  ['res-pw','res-temp','res-vib','res-acoustic','res-rpm'].forEach(cid => renderResBtns(cid, r));
 
   Promise.all([
     loadPowerWindChart(r),
     loadTempChart(r),
     loadVibrationChart(r),
+    loadAcousticHousingChart(r),
     loadRpmPitchChart(r),
   ]).then(() => applyDetailSensorMode(getSensorMode()));
 }
@@ -927,7 +973,7 @@ window.addEventListener('sensorModeChange', (e) => {
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadLiveData();
 // Render initial resolution buttons for 24h
-['res-pw','res-temp','res-vib','res-rpm'].forEach(cid => renderResBtns(cid, '24h'));
+['res-pw','res-temp','res-vib','res-acoustic','res-rpm'].forEach(cid => renderResBtns(cid, '24h'));
 
 // Apply sensor mode to gauges immediately (before charts load)
 applyDetailSensorMode(getSensorMode());
@@ -937,6 +983,7 @@ Promise.all([
   loadPowerWindChart('24h'),
   loadTempChart('24h'),
   loadVibrationChart('24h'),
+  loadAcousticHousingChart('24h'),
   loadRpmPitchChart('24h'),
 ]).then(() => applyDetailSensorMode(getSensorMode()));
 
