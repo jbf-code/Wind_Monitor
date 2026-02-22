@@ -205,28 +205,28 @@ function renderTurbineGrid(data) {
     const l = t.latest || {};
     const borderCol = {operational:'border-green-800', warning:'border-amber-700', fault:'border-red-800', offline:'border-slate-700'}[t.status] || 'border-slate-700';
 
-    // Internal sensor cells
+    // External sensors (X — outside the monitoring box): Power, Wind, RPM, Bearing temp
     const pw  = l.power_kw    != null ? (l.power_kw/1000).toFixed(2) : '—';
+    const wd  = l.wind_ms     != null ? l.wind_ms.toFixed(1) : '—';
     const rp  = l.rpm         != null ? l.rpm.toFixed(1) : '—';
     const btp = l.bearing_temp!= null ? l.bearing_temp.toFixed(0) : '—';
-    const vib = l.vib_x       != null ? l.vib_x.toFixed(3) : '—';
 
-    // External sensor cells
-    const wd  = l.wind_ms     != null ? l.wind_ms.toFixed(1) : '—';
-    const wdr = l.wind_dir    != null ? l.wind_dir.toFixed(0) + '°' : '—';
+    // Internal sensors (O — inside the monitoring box): Vibration, Acoustic, Ambient temp
+    const vib = l.vib_x       != null ? l.vib_x.toFixed(3) : '—';
+    const acu = l.acoustic_db != null ? l.acoustic_db.toFixed(0) : '—';
     const atp = l.ambient_temp!= null ? l.ambient_temp.toFixed(0) : '—';
 
     let cells = '';
-    if (mode === 'internal' || mode === 'all') {
+    if (mode === 'external' || mode === 'all') {
       cells += `<div><span class="text-slate-500">${TXT.power}</span><br><span class="text-sky-300 font-semibold">${pw} MW</span></div>`;
+      cells += `<div><span class="text-slate-500">${TXT.wind}</span><br><span class="text-emerald-300 font-semibold">${wd} m/s</span></div>`;
       cells += `<div><span class="text-slate-500">${TXT.rpm}</span><br><span class="text-purple-300">${rp}</span></div>`;
       cells += `<div><span class="text-slate-500">${TXT.temp}</span><br><span class="text-orange-300">${btp}°C</span></div>`;
-      cells += `<div><span class="text-slate-500">${LANG==='da'?'Vib':'Vib'}</span><br><span class="text-red-300">${vib}g</span></div>`;
     }
-    if (mode === 'external' || mode === 'all') {
-      cells += `<div><span class="text-slate-500">${TXT.wind}</span><br><span class="text-emerald-300 font-semibold">${wd} m/s</span></div>`;
-      cells += `<div><span class="text-slate-500">${LANG==='da'?'Retning':'Dir'}</span><br><span class="text-teal-300">${wdr}</span></div>`;
-      cells += `<div><span class="text-slate-500">${LANG==='da'?'Udetemperatur':'Ambient'}</span><br><span class="text-cyan-300">${atp}°C</span></div>`;
+    if (mode === 'internal' || mode === 'all') {
+      cells += `<div><span class="text-slate-500">${LANG==='da'?'Vib':'Vib'}</span><br><span class="text-red-300">${vib}g</span></div>`;
+      cells += `<div><span class="text-slate-500">${LANG==='da'?'Akustik':'Acoustic'}</span><br><span class="text-teal-300">${acu} dB</span></div>`;
+      cells += `<div><span class="text-slate-500">${LANG==='da'?'Omgivelsestem.':'Ambient'}</span><br><span class="text-cyan-300">${atp}°C</span></div>`;
     }
 
     const modeBadge = mode !== 'all'
