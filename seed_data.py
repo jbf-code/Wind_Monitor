@@ -56,11 +56,16 @@ def wind_to_power(wind_ms, rated_kw, rated_wind=12.0, cut_in=3.0, cut_out=25.0):
     frac = ((wind_ms - cut_in) / (rated_wind - cut_in)) ** 3
     return rated_kw * frac * random.uniform(0.92, 1.0)
 
-def wind_speed_at_time(base_hour):
-    """Realistic wind speed pattern (m/s) for western Jutland."""
-    # Daily variation + random + seasonal (winter = more wind)
+def wind_speed_at_time(base_hour, day_of_year=0):
+    """Realistic wind speed pattern (m/s) for western Jutland.
+    Uses day_of_year to create a slow multi-day wind cycle so data
+    looks realistic across the full 3-week range with no seams.
+    """
+    # Daily variation (peaks mid-afternoon, dips early morning)
     daily = 2.0 * math.sin((base_hour % 24 - 14) * math.pi / 12)
-    base = 8.5 + daily + random.gauss(0, 1.5)
+    # Slow synoptic cycle: ~4-day weather system period
+    synoptic = 3.0 * math.sin(day_of_year * 2 * math.pi / 4.3)
+    base = 8.5 + daily + synoptic + random.gauss(0, 0.8)
     return max(0.5, min(28.0, base))
 
 def add_noise(val, pct=0.02):
@@ -69,8 +74,8 @@ def add_noise(val, pct=0.02):
 # ──────────────────────────────────────────────
 # READING GENERATOR
 # ──────────────────────────────────────────────
-def generate_reading(turbine_id, rated_kw, ts, hour_of_day, issue=None, resolution='min'):
-    wind = wind_speed_at_time(hour_of_day)
+def generate_reading(turbine_id, rated_kw, ts, hour_of_day, issue=None, resolution='min', day_offset=0):
+    wind = wind_speed_at_time(hour_of_day, day_of_year=day_offset)
     power = wind_to_power(wind, rated_kw)
 
     # Apply issue overrides
@@ -89,7 +94,7 @@ def generate_reading(turbine_id, rated_kw, ts, hour_of_day, issue=None, resoluti
     rpm = max(0, (power / rated_kw) * 15.0 + random.gauss(0, 0.3)) if power > 0 else 0
     pitch = max(-2, min(90, 15 - wind * 1.2 + random.gauss(0, 0.5))) if power > 0 else 90
 
-    outdoor_temp = random.gauss(5, 4)  # Danish Feb avg ~5°C (used for mechanical temps)
+    outdoor_temp = random.gauss(5, 2)  # Danish Feb avg ~5°C (used for mechanical temps)
     # Turbine housing temp: electronics + heat dissipation in enclosed box.
     # Baseline ~30°C at idle, rises ~10°C under full load, with small noise.
     load_frac = min(1.0, power / rated_kw) if power > 0 else 0.0
@@ -101,7 +106,7 @@ def generate_reading(turbine_id, rated_kw, ts, hour_of_day, issue=None, resoluti
         timestamp=ts,
         resolution=resolution,
 
-        power_output_kw=round(max(0, power + random.gauss(0, 20)), 2),
+        power_output_kw=round(max(0, power + random.gauss(0, 10)), 2),
         power_factor=round(random.uniform(0.95, 0.99), 3),
         grid_voltage_v=round(random.gauss(10500, 50), 1),
         grid_frequency_hz=round(random.gauss(50.0, 0.02), 3),
@@ -201,6 +206,9 @@ def seed_database(app):
             print("Database already seeded — skipping.")
             return
 
+        # Fixed seed → deterministic, identical data on every re-seed
+        random.seed(42)
+
         now = datetime.utcnow().replace(second=0, microsecond=0)
         three_weeks_ago = now - timedelta(weeks=3)
         one_week_ago    = now - timedelta(weeks=1)
@@ -239,9 +247,10 @@ def seed_database(app):
         batch = []
         ts = three_weeks_ago
         while ts < one_week_ago:
-            hour_of_day = ts.hour + ts.day * 0  # just hour
+            day_offset = (ts - three_weeks_ago).total_seconds() / 86400.0
             for tid, (rated_kw, issue) in turbine_map.items():
-                r = generate_reading(tid, rated_kw, ts, ts.hour, issue, resolution='hour')
+                r = generate_reading(tid, rated_kw, ts, ts.hour, issue,
+                                     resolution='hour', day_offset=day_offset)
                 batch.append(r)
             ts += timedelta(hours=1)
             if len(batch) >= 5000:
@@ -260,8 +269,10 @@ def seed_database(app):
         ts = one_week_ago
         count = 0
         while ts <= now:
+            day_offset = (ts - three_weeks_ago).total_seconds() / 86400.0
             for tid, (rated_kw, issue) in turbine_map.items():
-                r = generate_reading(tid, rated_kw, ts, ts.hour, issue, resolution='min')
+                r = generate_reading(tid, rated_kw, ts, ts.hour, issue,
+                                     resolution='min', day_offset=day_offset)
                 batch.append(r)
             ts += timedelta(minutes=1)
             count += 1

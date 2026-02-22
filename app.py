@@ -413,6 +413,44 @@ def api_fleet_power():
         for r in rows
     ])
 
+# ─── API: Re-seed (wipe + regenerate all sensor data) ────────────────────────
+@app.route('/api/admin/reseed', methods=['POST'])
+@login_required
+def api_reseed():
+    """
+    Wipe all sensor readings, events, ML insights, and turbines, then re-seed.
+    Useful after seed_data.py changes to regenerate clean data on Railway.
+    Protected by login_required.
+    """
+    from sqlalchemy import text as _t
+    global _seeded
+    try:
+        # Wipe in FK-safe order
+        db.session.execute(_t("DELETE FROM ml_insights"))
+        db.session.execute(_t("DELETE FROM turbine_events"))
+        db.session.execute(_t("DELETE FROM sensor_readings"))
+        db.session.execute(_t("DELETE FROM turbines"))
+        db.session.commit()
+        _seeded = False
+
+        # Re-run seed in background thread (same pattern as startup)
+        def _do_reseed():
+            global _seeded
+            with app.app_context():
+                from seed_data import seed_database
+                seed_database(app)
+                _seeded = True
+        threading.Thread(target=_do_reseed, daemon=True).start()
+
+        return jsonify({
+            "status": "started",
+            "message": "Database wiped. Re-seeding in background — check /status for completion (~2 min).",
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 # ─── API: Debug ───────────────────────────────────────────────────────────────
 @app.route('/api/debug/ai-events')
 @login_required
