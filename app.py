@@ -18,9 +18,11 @@ _db_url = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     os.environ.get('DATABASE_PATH', 'wind_monitor.db')
 ))
-# Railway injects postgres:// but SQLAlchemy requires postgresql://
+# Railway injects postgres:// — rewrite to use psycopg3 driver (Python 3.13 compatible)
 if _db_url.startswith('postgres://'):
-    _db_url = _db_url.replace('postgres://', 'postgresql://', 1)
+    _db_url = _db_url.replace('postgres://', 'postgresql+psycopg://', 1)
+elif _db_url.startswith('postgresql://'):
+    _db_url = _db_url.replace('postgresql://', 'postgresql+psycopg://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 print(f"[DB] Using: {'PostgreSQL' if 'postgresql' in _db_url else 'SQLite (ephemeral — data lost on redeploy!)'}")
