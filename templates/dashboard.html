@@ -400,15 +400,37 @@ async function loadFleetPower(range) {
       plugins: {
         legend: {
           position: 'bottom',
-          labels: { color:'#94a3b8', font:{size:11}, usePointStyle:true, pointStyle:'circle', boxWidth:8, boxHeight:8, padding:16 }
+          labels: {
+            color:'#94a3b8', font:{size:11}, padding:18,
+            usePointStyle:true, pointStyle:'circle', boxWidth:6, boxHeight:6,
+            generateLabels(chart) {
+              return Chart.defaults.plugins.legend.labels.generateLabels(chart).map(item => {
+                const ds = chart.data.datasets[item.datasetIndex];
+                const col = (typeof ds.borderColor==='string' ? ds.borderColor : null)
+                         || (typeof ds.backgroundColor==='string' ? ds.backgroundColor : null)
+                         || item.fillStyle;
+                item.fillStyle = col; item.strokeStyle = col; item.lineWidth = 0; item.pointStyle = 'circle';
+                return item;
+              });
+            }
+          }
         },
         tooltip: {
           backgroundColor:'rgba(15,23,42,0.95)', borderColor:'#334155', borderWidth:1,
           titleColor:'#e2e8f0', titleFont:{weight:'bold',size:12},
           bodyColor:'#94a3b8', bodyFont:{size:12},
-          padding:12, boxWidth:10, boxHeight:10,
+          padding:12, boxWidth:8, boxHeight:8,
           usePointStyle:true, pointStyle:'circle', bodySpacing:6,
-          callbacks: { labelPointStyle: () => ({ pointStyle:'circle', rotation:0 }) }
+          callbacks: {
+            labelPointStyle: () => ({ pointStyle:'circle', rotation:0 }),
+            labelColor(ctx) {
+              const ds = ctx.chart.data.datasets[ctx.datasetIndex];
+              const col = (typeof ds.borderColor==='string' ? ds.borderColor : null)
+                       || (typeof ds.backgroundColor==='string' ? ds.backgroundColor : null)
+                       || '#94a3b8';
+              return { borderColor:col, backgroundColor:col, borderWidth:0, borderRadius:4 };
+            }
+          }
         }
       },
       scales: {

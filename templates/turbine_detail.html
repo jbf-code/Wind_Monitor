@@ -232,6 +232,22 @@
 
 {% block scripts %}
 <script>
+// ── Global Chart.js: solid-circle legend + tooltip ────────────────────────────
+Chart.register({
+  id: 'solidCircleLegend',
+  beforeUpdate(chart) {
+    // Force every dataset to use its borderColor as a solid fill in legends
+    chart.data.datasets.forEach(ds => {
+      const col = ds.borderColor || ds.backgroundColor;
+      if (col && typeof col === 'string') {
+        ds.pointStyle = 'circle';
+        ds.pointBackgroundColor = col;
+        ds.pointBorderColor = col;
+      }
+    });
+  }
+});
+
 const TURBINE_ID = {{ turbine.id }};
 const RATED_KW   = {{ turbine.rated_power_kw }};
 
@@ -305,11 +321,25 @@ function chartOpts(range, extraScales) {
         labels: {
           color: '#94a3b8',
           font: { size: 11 },
+          padding: 18,
           usePointStyle: true,
           pointStyle: 'circle',
-          boxWidth: 8,
-          boxHeight: 8,
-          padding: 16,
+          boxWidth: 6,
+          boxHeight: 6,
+          generateLabels(chart) {
+            return Chart.defaults.plugins.legend.labels.generateLabels(chart).map(item => {
+              // Force solid fill using the dataset's border/background colour
+              const ds = chart.data.datasets[item.datasetIndex];
+              const col = (typeof ds.borderColor === 'string' ? ds.borderColor : null)
+                       || (typeof ds.backgroundColor === 'string' ? ds.backgroundColor : null)
+                       || item.fillStyle;
+              item.fillStyle = col;
+              item.strokeStyle = col;
+              item.lineWidth = 0;
+              item.pointStyle = 'circle';
+              return item;
+            });
+          }
         }
       },
       tooltip: {
@@ -321,13 +351,20 @@ function chartOpts(range, extraScales) {
         bodyColor: '#94a3b8',
         bodyFont: { size: 12 },
         padding: 12,
-        boxWidth: 10,
-        boxHeight: 10,
+        boxWidth: 8,
+        boxHeight: 8,
         usePointStyle: true,
         pointStyle: 'circle',
         bodySpacing: 6,
         callbacks: {
           labelPointStyle: () => ({ pointStyle: 'circle', rotation: 0 }),
+          labelColor(ctx) {
+            const ds = ctx.chart.data.datasets[ctx.datasetIndex];
+            const col = (typeof ds.borderColor === 'string' ? ds.borderColor : null)
+                     || (typeof ds.backgroundColor === 'string' ? ds.backgroundColor : null)
+                     || '#94a3b8';
+            return { borderColor: col, backgroundColor: col, borderWidth: 0, borderRadius: 4 };
+          }
         }
       }
     },
