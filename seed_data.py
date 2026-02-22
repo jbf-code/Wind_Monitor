@@ -94,7 +94,8 @@ def generate_reading(turbine_id, rated_kw, ts, hour_of_day, issue=None, resoluti
     rpm = max(0, (power / rated_kw) * 15.0 + random.gauss(0, 0.3)) if power > 0 else 0
     pitch = max(-2, min(90, 15 - wind * 1.2 + random.gauss(0, 0.5))) if power > 0 else 90
 
-    outdoor_temp = random.gauss(5, 2)  # Danish Feb avg ~5°C (used for mechanical temps)
+    # Outdoor temp tracks the synoptic wind cycle (colder = high pressure = less wind)
+    outdoor_temp = 5.0 - math.sin(day_offset * 2 * math.pi / 4.3) * 3.0 + random.gauss(0, 1.5)
     # Turbine housing temp: electronics + heat dissipation in enclosed box.
     # Baseline ~30°C at idle, rises ~10°C under full load, with small noise.
     load_frac = min(1.0, power / rated_kw) if power > 0 else 0.0
@@ -125,13 +126,16 @@ def generate_reading(turbine_id, rated_kw, ts, hour_of_day, issue=None, resoluti
         ambient_temp_c=housing_temp,
         nacelle_humidity_pct=round(random.uniform(30, 70), 1),
 
-        vibration_gearbox_x=round(max(0, 0.05 + gearbox_vib_extra + random.gauss(0, 0.01)), 4),
-        vibration_gearbox_y=round(max(0, 0.04 + gearbox_vib_extra + random.gauss(0, 0.01)), 4),
-        vibration_gearbox_z=round(max(0, 0.03 + gearbox_vib_extra * 0.8 + random.gauss(0, 0.008)), 4),
-        vibration_bearing=round(max(0, 0.02 + random.gauss(0, 0.005)), 4),
-        vibration_blade_1=round(max(0, 0.015 + random.gauss(0, 0.003)), 4),
-        vibration_blade_2=round(max(0, 0.014 + random.gauss(0, 0.003)), 4),
-        vibration_blade_3=round(max(0, 0.016 + random.gauss(0, 0.003)), 4),
+        # Vibration scales with load fraction — so it rises and falls with wind
+        # and remains visible even after heavy averaging in 12h/24h chart buckets
+        vib_load = 0.03 + load_frac * 0.04   # 0.03 at idle → 0.07 at full load
+        vibration_gearbox_x=round(max(0, vib_load + gearbox_vib_extra + random.gauss(0, 0.006)), 4),
+        vibration_gearbox_y=round(max(0, vib_load * 0.85 + gearbox_vib_extra + random.gauss(0, 0.005)), 4),
+        vibration_gearbox_z=round(max(0, vib_load * 0.65 + gearbox_vib_extra * 0.8 + random.gauss(0, 0.004)), 4),
+        vibration_bearing=round(max(0, 0.012 + load_frac * 0.012 + random.gauss(0, 0.003)), 4),
+        vibration_blade_1=round(max(0, 0.010 + load_frac * 0.008 + random.gauss(0, 0.002)), 4),
+        vibration_blade_2=round(max(0, 0.009 + load_frac * 0.008 + random.gauss(0, 0.002)), 4),
+        vibration_blade_3=round(max(0, 0.011 + load_frac * 0.008 + random.gauss(0, 0.002)), 4),
 
         acoustic_level_db=round(max(30, 65 + (power / rated_kw) * 15 + random.gauss(0, 2)), 1),
     )
