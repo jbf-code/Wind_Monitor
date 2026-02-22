@@ -85,6 +85,26 @@
 
   <!-- Right side -->
   <div class="flex items-center gap-3 text-sm">
+
+    <!-- ── Sensor Mode Toggle ──────────────────────────────────────────── -->
+    <div class="hidden sm:flex items-center gap-1 bg-slate-800 rounded-lg p-1 text-xs font-medium" title="{% if lang=='da' %}Sensorvisning{% else %}Sensor view{% endif %}">
+      <button id="smode-internal" onclick="setSensorMode('internal')"
+        class="smode-btn flex items-center gap-1 px-2 py-1 rounded transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        {% if lang=='da' %}Intern{% else %}Internal{% endif %}
+      </button>
+      <button id="smode-external" onclick="setSensorMode('external')"
+        class="smode-btn flex items-center gap-1 px-2 py-1 rounded transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+        {% if lang=='da' %}Ekstern{% else %}External{% endif %}
+      </button>
+      <button id="smode-all" onclick="setSensorMode('all')"
+        class="smode-btn flex items-center gap-1 px-2 py-1 rounded transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        {% if lang=='da' %}Alle{% else %}All{% endif %}
+      </button>
+    </div>
+
     <!-- Seed status indicator -->
     <span id="seedStatus" class="hidden sm:flex items-center gap-1 text-xs text-slate-500">
       <span id="seedDot" class="w-2 h-2 rounded-full bg-yellow-500 inline-block"></span>
@@ -130,6 +150,44 @@
 </footer>
 
 <script>
+// ── Sensor Mode (Internal / External / All) ───────────────────────────────────
+// Persisted in localStorage so it survives page navigation.
+// Pages listen for the 'sensorModeChange' custom event to update their UI.
+//
+// Internal sensors  — mounted inside/on the turbine:
+//   Power & generation, RPM, pitch, nacelle/bearing/gearbox/generator/oil temps,
+//   nacelle humidity, vibration (all axes), acoustic level
+//
+// External sensors  — atmospheric / environmental:
+//   Wind speed, wind direction, ambient temperature
+//
+// "All" shows every sensor regardless.
+
+const SENSOR_MODE_KEY = 'windMonitorSensorMode';
+
+function getSensorMode() {
+  return localStorage.getItem(SENSOR_MODE_KEY) || 'all';
+}
+
+function setSensorMode(mode) {
+  if (!['internal','external','all'].includes(mode)) return;
+  localStorage.setItem(SENSOR_MODE_KEY, mode);
+  _applySensorModeNav(mode);
+  // Broadcast to the current page so charts/gauges react
+  window.dispatchEvent(new CustomEvent('sensorModeChange', { detail: { mode } }));
+}
+
+function _applySensorModeNav(mode) {
+  document.querySelectorAll('.smode-btn').forEach(btn => {
+    const isActive = btn.id === 'smode-' + mode;
+    btn.className = 'smode-btn flex items-center gap-1 px-2 py-1 rounded transition-colors '
+      + (isActive ? 'bg-sky-600 text-white' : 'text-slate-400 hover:text-white');
+  });
+}
+
+// Apply immediately on page load
+_applySensorModeNav(getSensorMode());
+
 // Check seed status
 async function checkSeed() {
   try {

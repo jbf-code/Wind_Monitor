@@ -110,9 +110,12 @@
 
 <!-- ── 16 Turbine Mini-Cards Grid ────────────────────────────────────── -->
 <div class="mb-2">
-  <h2 class="font-semibold text-slate-300 text-sm mb-3">
-    {% if lang=='da' %}Alle 16 møller — detaljer{% else %}All 16 Turbines — Details{% endif %}
-  </h2>
+  <div class="flex items-center gap-3 mb-3">
+    <h2 class="font-semibold text-slate-300 text-sm">
+      {% if lang=='da' %}Alle 16 møller — detaljer{% else %}All 16 Turbines — Details{% endif %}
+    </h2>
+    <span id="sensorModeLabel" class="text-xs px-2 py-0.5 rounded-full font-medium"></span>
+  </div>
   <div id="turbineGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-8 gap-3">
     <!-- populated by JS -->
   </div>
@@ -197,24 +200,50 @@ function renderFleetList(data) {
 
 // ── 16 Turbine Mini-Cards ────────────────────────────────────────────────────
 function renderTurbineGrid(data) {
+  const mode = getSensorMode();
   document.getElementById('turbineGrid').innerHTML = data.map(t => {
-    const pw = t.latest?.power_kw != null ? (t.latest.power_kw/1000).toFixed(2) : '—';
-    const wd = t.latest?.wind_ms  != null ? t.latest.wind_ms.toFixed(1) : '—';
-    const rp = t.latest?.rpm      != null ? t.latest.rpm.toFixed(1) : '—';
-    const tp = t.latest?.bearing_temp != null ? t.latest.bearing_temp.toFixed(0) : '—';
+    const l = t.latest || {};
     const borderCol = {operational:'border-green-800', warning:'border-amber-700', fault:'border-red-800', offline:'border-slate-700'}[t.status] || 'border-slate-700';
+
+    // Internal sensor cells
+    const pw  = l.power_kw    != null ? (l.power_kw/1000).toFixed(2) : '—';
+    const rp  = l.rpm         != null ? l.rpm.toFixed(1) : '—';
+    const btp = l.bearing_temp!= null ? l.bearing_temp.toFixed(0) : '—';
+    const vib = l.vib_x       != null ? l.vib_x.toFixed(3) : '—';
+
+    // External sensor cells
+    const wd  = l.wind_ms     != null ? l.wind_ms.toFixed(1) : '—';
+    const wdr = l.wind_dir    != null ? l.wind_dir.toFixed(0) + '°' : '—';
+    const atp = l.ambient_temp!= null ? l.ambient_temp.toFixed(0) : '—';
+
+    let cells = '';
+    if (mode === 'internal' || mode === 'all') {
+      cells += `<div><span class="text-slate-500">${TXT.power}</span><br><span class="text-sky-300 font-semibold">${pw} MW</span></div>`;
+      cells += `<div><span class="text-slate-500">${TXT.rpm}</span><br><span class="text-purple-300">${rp}</span></div>`;
+      cells += `<div><span class="text-slate-500">${TXT.temp}</span><br><span class="text-orange-300">${btp}°C</span></div>`;
+      cells += `<div><span class="text-slate-500">${LANG==='da'?'Vib':'Vib'}</span><br><span class="text-red-300">${vib}g</span></div>`;
+    }
+    if (mode === 'external' || mode === 'all') {
+      cells += `<div><span class="text-slate-500">${TXT.wind}</span><br><span class="text-emerald-300 font-semibold">${wd} m/s</span></div>`;
+      cells += `<div><span class="text-slate-500">${LANG==='da'?'Retning':'Dir'}</span><br><span class="text-teal-300">${wdr}</span></div>`;
+      cells += `<div><span class="text-slate-500">${LANG==='da'?'Udetemperatur':'Ambient'}</span><br><span class="text-cyan-300">${atp}°C</span></div>`;
+    }
+
+    const modeBadge = mode !== 'all'
+      ? `<div class="text-xs ${mode==='internal'?'text-sky-500':'text-emerald-600'} font-medium mt-0.5">
+           ${mode==='internal'
+             ? (LANG==='da'?'🔧 Intern sensor':'🔧 Internal sensor')
+             : (LANG==='da'?'🌤 Ekstern sensor':'🌤 External sensor')}
+         </div>` : '';
+
     return `<a href="/turbine/${t.id}" class="card border ${borderCol} p-3 flex flex-col gap-2 hover:border-sky-600 transition-colors cursor-pointer no-underline">
       <div class="flex items-center justify-between">
         <span class="font-bold text-white text-sm">${t.name}</span>
         ${TURBINE_SVG_SMALL(STATUS_COL[t.status] || '#6b7280')}
       </div>
       <div class="text-xs text-slate-500">${t.make}</div>
-      <div class="grid grid-cols-2 gap-1 text-xs mt-1">
-        <div><span class="text-slate-500">${TXT.power}</span><br><span class="text-sky-300 font-semibold">${pw} MW</span></div>
-        <div><span class="text-slate-500">${TXT.wind}</span><br><span class="text-emerald-300 font-semibold">${wd} m/s</span></div>
-        <div><span class="text-slate-500">${TXT.rpm}</span><br><span class="text-purple-300">${rp}</span></div>
-        <div><span class="text-slate-500">${TXT.temp}</span><br><span class="text-orange-300">${tp}°C</span></div>
-      </div>
+      ${modeBadge}
+      <div class="grid grid-cols-2 gap-1 text-xs mt-1">${cells}</div>
       ${t.open_events > 0 ? `<div class="text-xs text-amber-400 font-medium">⚠ ${t.open_events} ${LANG==='da'?'advarsel(er)':'alert(s)'}</div>` : ''}
     </a>`;
   }).join('');
@@ -470,10 +499,31 @@ async function loadEvents() {
   `).join('');
 }
 
+// ── Sensor mode label ─────────────────────────────────────────────────────────
+function updateSensorModeLabel(mode) {
+  const el = document.getElementById('sensorModeLabel');
+  if (!el) return;
+  const cfg = {
+    internal: { text: LANG==='da' ? '🔧 Interne sensorer' : '🔧 Internal sensors', cls: 'bg-sky-900/50 text-sky-400 border border-sky-700/40' },
+    external: { text: LANG==='da' ? '🌤 Eksterne sensorer' : '🌤 External sensors', cls: 'bg-emerald-900/50 text-emerald-400 border border-emerald-700/40' },
+    all:      { text: LANG==='da' ? '⚡ Alle sensorer'     : '⚡ All sensors',      cls: 'bg-slate-700/50 text-slate-400 border border-slate-600/40' },
+  };
+  const c = cfg[mode] || cfg.all;
+  el.textContent = c.text;
+  el.className = `text-xs px-2 py-0.5 rounded-full font-medium ${c.cls}`;
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────────
+updateSensorModeLabel(getSensorMode());
 loadFleet();
 loadEvents();
 loadFleetPower();
+
+// Re-render turbine grid when sensor mode changes (nav toggle)
+window.addEventListener('sensorModeChange', (e) => {
+  updateSensorModeLabel(e.detail.mode);
+  if (fleetData.length) renderTurbineGrid(fleetData);
+});
 
 // Auto-refresh every 60 seconds
 setInterval(() => { loadFleet(); loadEvents(); loadFleetPower(currentPowerRange); }, 60000);
