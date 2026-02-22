@@ -222,7 +222,7 @@ def api_chart(turbine_id):
         # Bucket into 15-minute averages (~96 pts over 24h) for clean readable lines
         since = now - timedelta(hours=24)
         if is_sqlite:
-            # SQLite: truncate to 15-min bucket (900 seconds) via integer division
+            # SQLite: floor to 15-min bucket via Unix epoch integer division (900s)
             bucket_expr_24 = func.strftime(
                 '%Y-%m-%dT%H:%M:00',
                 func.datetime(
@@ -231,10 +231,11 @@ def api_chart(turbine_id):
                 )
             ).label('bucket')
         else:
-            # PostgreSQL: date_trunc to 15-minute interval
+            # PostgreSQL: floor to 15-min bucket using epoch arithmetic
+            # EXTRACT(epoch) gives seconds since 1970-01-01; divide by 900, floor, multiply back
             from sqlalchemy import text as sa_text
-            bucket_expr_24 = func.date_trunc(
-                sa_text("'15 minutes'"), SensorReading.timestamp
+            bucket_expr_24 = func.to_timestamp(
+                (func.extract('epoch', SensorReading.timestamp).cast(db.BigInteger) / 900) * 900
             ).label('bucket')
 
         rows = (db.session.query(bucket_expr_24, func.avg(col).label('val'))
